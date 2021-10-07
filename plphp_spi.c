@@ -97,9 +97,9 @@ static zval get_table_arguments(AttInMetadata *attinmeta);
 ZEND_FUNCTION(spi_exec)
 {
 	char	   *query;
-	int			query_len;
+	size_t		query_len;
 	long		status;
-	long		limit;
+	zend_long	limit;
 	php_SPIresult *SPIres;
 	zend_resource	*spi_id;
 	MemoryContext oldcontext = CurrentMemoryContext;
@@ -392,9 +392,9 @@ ZEND_FUNCTION(pg_raise)
 {
 	char       *level = NULL,
 			   *message = NULL;
-	int         level_len,
-				message_len,
-				elevel = 0;
+	size_t     level_len,
+				message_len;
+	int			elevel = 0;
 
 	if (ZEND_NUM_ARGS() != 2)
 	{
