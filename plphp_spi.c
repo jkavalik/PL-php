@@ -46,7 +46,7 @@
 
 #ifdef DEBUG_PLPHP_MEMORY
 #define REPORT_PHP_MEMUSAGE(where) \
-	elog(NOTICE, "PHP mem usage: «%s»: %u", where, AG(allocated_memory));
+	elog(NOTICE, "PHP mem usage: ï¿½%sï¿½: %u", where, AG(allocated_memory));
 #else
 #define REPORT_PHP_MEMUSAGE(a) 
 #endif
@@ -64,7 +64,7 @@ zend_function_entry spi_functions[] =
 	ZEND_FE(spi_rewind, NULL)
 	ZEND_FE(pg_raise, NULL)
 	ZEND_FE(return_next, NULL)
-	{NULL, NULL, NULL}
+	ZEND_FE_END
 };
 
 /* SRF support: */
@@ -78,7 +78,7 @@ Tuplestorestate *current_tuplestore = NULL;
 /* A symbol table to save for return_next for the RETURNS TABLE case */
 HashTable *saved_symbol_table;
 
-static zval *get_table_arguments(AttInMetadata *attinmeta);
+static zval get_table_arguments(AttInMetadata *attinmeta);
 
 /*
  * spi_exec
@@ -101,7 +101,7 @@ ZEND_FUNCTION(spi_exec)
 	long		status;
 	long		limit;
 	php_SPIresult *SPIres;
-	int			spi_id;
+	zend_resource	*spi_id;
 	MemoryContext oldcontext = CurrentMemoryContext;
 	ResourceOwner oldowner = CurrentResourceOwner;
 
@@ -205,12 +205,12 @@ ZEND_FUNCTION(spi_exec)
 	REPORT_PHP_MEMUSAGE("spi_exec: creating resource");
 
 	/* Register the resource to PHP so it will be able to free it */
-	spi_id = ZEND_REGISTER_RESOURCE(return_value, (void *) SPIres,
+	spi_id = zend_register_resource((void *) SPIres,
 					 				SPIres_rtype);
 
 	REPORT_PHP_MEMUSAGE("spi_exec: returning");
 
-	RETURN_RESOURCE(spi_id);
+	RETURN_RES(spi_id);
 }
 
 /*
@@ -225,8 +225,8 @@ ZEND_FUNCTION(spi_exec)
  */
 ZEND_FUNCTION(spi_fetch_row)
 {
-	zval	   *row = NULL;
-	zval	  **z_spi = NULL;
+	zval	   row;
+	zval	  *z_spi = NULL;
 	php_SPIresult	*SPIres;
 
 	REPORT_PHP_MEMUSAGE("spi_fetch_row: called");
@@ -234,7 +234,7 @@ ZEND_FUNCTION(spi_fetch_row)
 	if (ZEND_NUM_ARGS() != 1)
 		WRONG_PARAM_COUNT;
 
-	if (zend_get_parameters_ex(1, &z_spi) == FAILURE)
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &z_spi) == FAILURE)
 	{
 		zend_error(E_WARNING, "Can not parse parameters in %s",
 				   get_active_function_name(TSRMLS_C));
@@ -247,9 +247,9 @@ ZEND_FUNCTION(spi_fetch_row)
 		RETURN_FALSE;
 	}
 
-	ZEND_FETCH_RESOURCE(SPIres, php_SPIresult *, z_spi, -1, "SPI result",
-						SPIres_rtype);
-
+	if ((SPIres = (php_SPIresult *)zend_fetch_resource(Z_RES_P(z_spi), "SPI result", SPIres_rtype)) == NULL) {
+		RETURN_FALSE;
+	}
 	if (SPIres->status != SPI_OK_SELECT)
 	{
 		zend_error(E_WARNING, "SPI status is not good");
@@ -262,11 +262,9 @@ ZEND_FUNCTION(spi_fetch_row)
 			  						SPIres->SPI_tuptable->tupdesc);
 		SPIres->current_row++;
 
-		*return_value = *row;
+		*return_value = row;
 
 		zval_copy_ctor(return_value);
-		zval_dtor(row);
-		FREE_ZVAL(row);
 
 	}
 	else
@@ -281,7 +279,7 @@ ZEND_FUNCTION(spi_fetch_row)
  */
 ZEND_FUNCTION(spi_processed)
 {
-	zval	   **z_spi = NULL;
+	zval	   *z_spi = NULL;
 	php_SPIresult	*SPIres;
 
 	REPORT_PHP_MEMUSAGE("spi_processed: start");
@@ -289,7 +287,7 @@ ZEND_FUNCTION(spi_processed)
 	if (ZEND_NUM_ARGS() != 1)
 		WRONG_PARAM_COUNT;
 
-	if (zend_get_parameters_ex(1, &z_spi) == FAILURE)
+	if (zend_parse_parameters(1, "r", &z_spi) == FAILURE)
 	{
 		zend_error(E_WARNING, "Cannot parse parameters in %s",
 				   get_active_function_name(TSRMLS_C));
@@ -302,8 +300,9 @@ ZEND_FUNCTION(spi_processed)
 		RETURN_FALSE;
 	}
 
-	ZEND_FETCH_RESOURCE(SPIres, php_SPIresult *, z_spi, -1, "SPI result",
-						SPIres_rtype);
+	if ((SPIres = (php_SPIresult *)zend_fetch_resource(Z_RES_P(z_spi), "SPI result", SPIres_rtype)) == NULL) {
+		RETURN_FALSE;
+	}
 
 	REPORT_PHP_MEMUSAGE("spi_processed: finish");
 
@@ -316,7 +315,7 @@ ZEND_FUNCTION(spi_processed)
  */
 ZEND_FUNCTION(spi_status)
 {
-	zval	   **z_spi = NULL;
+	zval	   *z_spi = NULL;
 	php_SPIresult	*SPIres;
 
 	REPORT_PHP_MEMUSAGE("spi_status: start");
@@ -324,7 +323,7 @@ ZEND_FUNCTION(spi_status)
 	if (ZEND_NUM_ARGS() != 1)
 		WRONG_PARAM_COUNT;
 
-	if (zend_get_parameters_ex(1, &z_spi) == FAILURE)
+	if (zend_parse_parameters(1, "r", &z_spi) == FAILURE)
 	{
 		zend_error(E_WARNING, "Cannot parse parameters in %s",
 				   get_active_function_name(TSRMLS_C));
@@ -337,8 +336,9 @@ ZEND_FUNCTION(spi_status)
 		RETURN_FALSE;
 	}
 
-	ZEND_FETCH_RESOURCE(SPIres, php_SPIresult *, z_spi, -1, "SPI result",
-						SPIres_rtype);
+	if ((SPIres = (php_SPIresult *)zend_fetch_resource(Z_RES_P(z_spi), "SPI result", SPIres_rtype)) == NULL) {
+		RETURN_FALSE;
+	}
 
 	REPORT_PHP_MEMUSAGE("spi_status: finish");
 
@@ -347,7 +347,7 @@ ZEND_FUNCTION(spi_status)
 	 * Note that the second parameter to RETURN_STRING is "duplicate", so
 	 * we are returning a copy of the string anyway.
 	 */
-	RETURN_STRING((char *) SPI_result_code_string(SPIres->status), true);
+	RETURN_STRING((char *) SPI_result_code_string(SPIres->status));
 }
 
 /*
@@ -357,13 +357,13 @@ ZEND_FUNCTION(spi_status)
  */
 ZEND_FUNCTION(spi_rewind)
 {
-	zval	   **z_spi = NULL;
+	zval	   *z_spi = NULL;
 	php_SPIresult	*SPIres;
 
 	if (ZEND_NUM_ARGS() != 1)
 		WRONG_PARAM_COUNT;
 
-	if (zend_get_parameters_ex(1, &z_spi) == FAILURE)
+	if (zend_parse_parameters(1, "r", &z_spi) == FAILURE)
 	{
 		zend_error(E_WARNING, "Cannot parse parameters in %s",
 				   get_active_function_name(TSRMLS_C));
@@ -376,8 +376,9 @@ ZEND_FUNCTION(spi_rewind)
 		RETURN_FALSE;
 	}
 
-	ZEND_FETCH_RESOURCE(SPIres, php_SPIresult *, z_spi, -1, "SPI result",
-						SPIres_rtype);
+	if ((SPIres = (php_SPIresult *)zend_fetch_resource(Z_RES_P(z_spi), "SPI result", SPIres_rtype)) == NULL) {
+		RETURN_FALSE;
+	}
 
 	SPIres->current_row = 0;
 
@@ -429,7 +430,7 @@ ZEND_FUNCTION(pg_raise)
 ZEND_FUNCTION(return_next)
 {
 	MemoryContext	oldcxt;
-	zval	   *param;
+	zval	   param;
 	HeapTuple	tup;
 	ReturnSetInfo *rsi;
 	
@@ -492,7 +493,7 @@ ZEND_FUNCTION(return_next)
  * or is overwritten by another resource.
  */
 void
-php_SPIresult_destroy(zend_rsrc_list_entry *rsrc TSRMLS_DC)
+php_SPIresult_destroy(zend_resource *rsrc TSRMLS_DC)
 {
 	php_SPIresult *res = (php_SPIresult *) rsrc->ptr;
 
@@ -504,33 +505,31 @@ php_SPIresult_destroy(zend_rsrc_list_entry *rsrc TSRMLS_DC)
 
 /* Return an array of TABLE argument values for return_next */
 static
-zval *get_table_arguments(AttInMetadata *attinmeta)
+zval get_table_arguments(AttInMetadata *attinmeta)
 {
-	zval   *retval = NULL;
+	zval   retval;
 	int		i;
 	
-	MAKE_STD_ZVAL(retval);
-	array_init(retval);
+	array_init(&retval);
 
 	Assert(attinmeta->tupdesc);
 	Assert(saved_symbol_table != NULL);
 	/* Extract OUT argument names */
 	for (i = 0; i < attinmeta->tupdesc->natts; i++)
 	{
-		zval 	**val;
+		zval 	*val;
 		char 	*attname;
 
-		Assert(!attinmeta->tupdesc->attrs[i]->attisdropped);
+		Assert(!attinmeta->tupdesc->attrs[i].attisdropped);
 
-		attname = NameStr(attinmeta->tupdesc->attrs[i]->attname);
+		attname = NameStr(attinmeta->tupdesc->attrs[i].attname);
 
-		if (zend_hash_find(saved_symbol_table, 
-						   attname, strlen(attname) + 1,
-						   (void **)&val) == SUCCESS)
+		if ((val = zend_hash_str_find(saved_symbol_table, 
+						   attname, strlen(attname))))
 
-			add_next_index_zval(retval, *val);
+			add_next_index_zval(&retval, val);
 		else
-			add_next_index_unset(retval);
+			add_next_index_null(&retval);
 	} 
 	return retval;
 }

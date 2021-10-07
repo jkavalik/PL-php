@@ -25,32 +25,31 @@
  * plphp_zval_from_tuple
  *		 Build a PHP hash from a tuple.
  */
-zval *
+zval
 plphp_zval_from_tuple(HeapTuple tuple, TupleDesc tupdesc)
 {
 	int			i;
 	char	   *attname = NULL;
-	zval	   *array;
+	zval	   array;
 
-	MAKE_STD_ZVAL(array);
-	array_init(array);
+	array_init(&array);
 
 	for (i = 0; i < tupdesc->natts; i++)
 	{
 		char *attdata;
 
 		/* Get the attribute name */
-		attname = tupdesc->attrs[i]->attname.data;
+		attname = tupdesc->attrs[i].attname.data;
 
 		/* and get its value */
 		if ((attdata = SPI_getvalue(tuple, tupdesc, i + 1)) != NULL)
 		{
 			/* "true" means strdup the string */
-			add_assoc_string(array, attname, attdata, true);
+			add_assoc_string(&array, attname, attdata);
 			pfree(attdata);
 		}
 		else
-			add_assoc_null(array, attname);
+			add_assoc_null(&array, attname);
 	}
 	return array;
 }
@@ -69,14 +68,14 @@ plphp_zval_from_tuple(HeapTuple tuple, TupleDesc tupdesc)
  * reset it between calls.
  */
 HeapTuple
-plphp_htup_from_zval(zval *val, TupleDesc tupdesc)
+plphp_htup_from_zval(zval val, TupleDesc tupdesc)
 {
 	MemoryContext	oldcxt;
 	MemoryContext	tmpcxt;
 	HeapTuple		ret;
 	AttInMetadata  *attinmeta;
 	HashPosition	pos;
-	zval		  **element;
+	zval		  *element;
 	char		  **values;
 	int				i;
 	bool			allempty = true;
@@ -108,13 +107,11 @@ plphp_htup_from_zval(zval *val, TupleDesc tupdesc)
 	 */
 	if (allempty)
 		for (i = 0, 
-			 zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(val), &pos);
-			 (zend_hash_get_current_data_ex(Z_ARRVAL_P(val), 
-										   (void **) &element,
-											&pos) == SUCCESS) && 
+			 zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(&val), &pos);
+			 (element = zend_hash_get_current_data_ex(Z_ARRVAL_P(&val), &pos)) && 
 			(i < tupdesc->natts);
-			zend_hash_move_forward_ex(Z_ARRVAL_P(val), &pos), i++)
-			values[i] = plphp_zval_get_cstring(element[0], true, true);
+			zend_hash_move_forward_ex(Z_ARRVAL_P(&val), &pos), i++)
+			values[i] = plphp_zval_get_cstring(&element[0], true, true);
 
 	attinmeta = TupleDescGetAttInMetadata(tupdesc);
 
@@ -136,14 +133,14 @@ plphp_htup_from_zval(zval *val, TupleDesc tupdesc)
  * time.
  */
 HeapTuple
-plphp_srf_htup_from_zval(zval *val, AttInMetadata *attinmeta,
+plphp_srf_htup_from_zval(zval val, AttInMetadata *attinmeta,
 						 MemoryContext cxt)
 {
 	MemoryContext	oldcxt;
 	HeapTuple		ret;
 	HashPosition	pos;
 	char		  **values;
-	zval		  **element;
+	zval		  *element;
 	int				i = 0;
 
 	oldcxt = MemoryContextSwitchTo(cxt);
@@ -161,22 +158,21 @@ plphp_srf_htup_from_zval(zval *val, AttInMetadata *attinmeta,
 	 *
 	 * If the input zval is a scalar, use it as an element directly.
 	 */
-	if (Z_TYPE_P(val) == IS_ARRAY)
+	if (Z_TYPE_P(&val) == IS_ARRAY)
 	{
 		if (attinmeta->tupdesc->natts == 1)
 		{
 			/* Is it an array? */
-			if (attinmeta->tupdesc->attrs[0]->attndims != 0 ||
-				!OidIsValid(get_element_type(attinmeta->tupdesc->attrs[0]->atttypid)))
+			if (attinmeta->tupdesc->attrs[0].attndims != 0 ||
+				!OidIsValid(get_element_type(attinmeta->tupdesc->attrs[0].atttypid)))
 			{
-				zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(val), &pos);
-				zend_hash_get_current_data_ex(Z_ARRVAL_P(val),
-											  (void **) &element,
+				zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(&val), &pos);
+				element = zend_hash_get_current_data_ex(Z_ARRVAL_P(&val),
 											  &pos);
-				values[0] = plphp_zval_get_cstring(element[0], true, true);
+				values[0] = plphp_zval_get_cstring(&element[0], true, true);
 			}
 			else
-				values[0] = plphp_zval_get_cstring(val, true, true);
+				values[0] = plphp_zval_get_cstring(&val, true, true);
 		}
 		else
 		{
@@ -184,11 +180,9 @@ plphp_srf_htup_from_zval(zval *val, AttInMetadata *attinmeta,
 			 * Ok, it's an array and the return tuple has more than one
 			 * attribute, so scan each array element.
 			 */
-			for (zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(val), &pos);
-				 zend_hash_get_current_data_ex(Z_ARRVAL_P(val),
-											   (void **) &element,
-											   &pos) == SUCCESS;
-				 zend_hash_move_forward_ex(Z_ARRVAL_P(val), &pos))
+			for (zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(&val), &pos);
+				 (element = zend_hash_get_current_data_ex(Z_ARRVAL_P(&val), &pos));
+				 zend_hash_move_forward_ex(Z_ARRVAL_P(&val), &pos))
 			{
 				/* avoid overrunning the palloc'ed chunk */
 				if (i >= attinmeta->tupdesc->natts)
@@ -197,7 +191,7 @@ plphp_srf_htup_from_zval(zval *val, AttInMetadata *attinmeta,
 					break;
 				}
 
-				values[i++] = plphp_zval_get_cstring(element[0], true, true);
+				values[i++] = plphp_zval_get_cstring(&element[0], true, true);
 			}
 		}
 	}
@@ -209,7 +203,7 @@ plphp_srf_htup_from_zval(zval *val, AttInMetadata *attinmeta,
 					(errmsg("returned array does not correspond to "
 							"declared return value")));
 
-		values[0] = plphp_zval_get_cstring(val, true, true);
+		values[0] = plphp_zval_get_cstring(&val, true, true);
 	}
 
 	MemoryContextSwitchTo(oldcxt);
@@ -232,7 +226,7 @@ char *
 plphp_convert_to_pg_array(zval *array)
 {
 	int			arr_size;
-	zval	  **element;
+	zval	  *element;
 	int			i = 0;
 	HashPosition 	pos;
 	StringInfoData	str;
@@ -245,32 +239,30 @@ plphp_convert_to_pg_array(zval *array)
 	if (Z_TYPE_P(array) == IS_ARRAY)
 	{
 		for (zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(array), &pos);
-			 zend_hash_get_current_data_ex(Z_ARRVAL_P(array),
-										   (void **) &element,
-										   &pos) == SUCCESS;
+			 (element = zend_hash_get_current_data_ex(Z_ARRVAL_P(array), &pos) );
 			 zend_hash_move_forward_ex(Z_ARRVAL_P(array), &pos))
 		{
 			char *tmp;
 
-			switch (Z_TYPE_P(element[0]))
+			switch (Z_TYPE_P(&element[0]))
 			{
 				case IS_LONG:
-					appendStringInfo(&str, "%li", element[0]->value.lval);
+					appendStringInfo(&str, "%li", element[0].value.lval);
 					break;
 				case IS_DOUBLE:
-					appendStringInfo(&str, "%f", element[0]->value.dval);
+					appendStringInfo(&str, "%f", element[0].value.dval);
 					break;
 				case IS_STRING:
-					appendStringInfo(&str, "\"%s\"", element[0]->value.str.val);
+					appendStringInfo(&str, "\"%s\"", element[0].value.str->val);
 					break;
 				case IS_ARRAY:
-					tmp = plphp_convert_to_pg_array(element[0]);
+					tmp = plphp_convert_to_pg_array(&element[0]);
 					appendStringInfo(&str, "%s", tmp);
 					pfree(tmp);
 					break;
 				default:
 					elog(ERROR, "unrecognized element type %d",
-						 Z_TYPE_P(element[0]));
+						 Z_TYPE_P( &element[0]));
 			}
 
 			if (i != arr_size - 1)
@@ -293,17 +285,15 @@ plphp_convert_to_pg_array(zval *array)
  *
  * FIXME -- does not correctly quote/dequote the values
  */
-zval *
-plphp_convert_from_pg_array(char *input TSRMLS_DC)
+zval plphp_convert_from_pg_array(char *input TSRMLS_DC)
 {
-	zval	   *retval = NULL;
+	zval	   retval;
 	int			i;
 	StringInfoData str;
 	
 	initStringInfo(&str);
 
-	MAKE_STD_ZVAL(retval);
-	array_init(retval);
+	array_init(&retval);
 
 	for (i = 0; i < strlen(input); i++)
 	{
@@ -316,7 +306,7 @@ plphp_convert_from_pg_array(char *input TSRMLS_DC)
 	}
 	appendStringInfoChar(&str, ';');
 
-	if (zend_eval_string(str.data, retval,
+	if (zend_eval_string(str.data, &retval,
 						 "plphp array input parameter" TSRMLS_CC) == FAILURE)
 		elog(ERROR, "plphp: convert to internal representation failure");
 
@@ -330,22 +320,17 @@ plphp_convert_from_pg_array(char *input TSRMLS_DC)
  * 		Return a pointer to the array element with the given key
  */
 zval *
-plphp_array_get_elem(zval *array, char *key)
+plphp_array_get_elem(zval array, char *key)
 {
-	zval	  **element;
+	zval	  *element;
 
-	if (!array)
-		elog(ERROR, "passed zval is not a valid pointer");
-	if (Z_TYPE_P(array) != IS_ARRAY)
+	if (Z_TYPE(array) != IS_ARRAY)
 		elog(ERROR, "passed zval is not an array");
 
-	if (zend_symtable_find(array->value.ht,
-					   	   key,
-					       strlen(key) + 1,
-					       (void **) &element) != SUCCESS)
+	if (!(element = zend_symtable_str_find(Z_ARRVAL(array), key, strlen(key))))
 		return NULL;
 
-	return element[0];
+	return &element[0];
 }
 
 /*
@@ -386,9 +371,13 @@ plphp_zval_get_cstring(zval *val, bool do_array, bool null_ok)
 			ret = palloc(64);
 			snprintf(ret, 64, "%f", Z_DVAL_P(val));
 			break;
-		case IS_BOOL:
+		case IS_TRUE:
 			ret = palloc(8);
-			snprintf(ret, 8, "%s", Z_BVAL_P(val) ? "true": "false");
+			snprintf(ret, 8, "%s", "true");
+			break;
+		case IS_FALSE:
+			ret = palloc(8);
+			snprintf(ret, 8, "%s", "false");
 			break;
 		case IS_STRING:
 			ret = palloc(Z_STRLEN_P(val) + 1);
@@ -403,7 +392,7 @@ plphp_zval_get_cstring(zval *val, bool do_array, bool null_ok)
 		default:
 			/* keep compiler quiet */
 			ret = NULL;
-			elog(ERROR, "can't stringize value of type %d", val->type);
+			elog(ERROR, "can't stringize value of type %d", Z_TYPE_P(val));
 	}
 
 	return ret;
@@ -414,11 +403,11 @@ plphp_zval_get_cstring(zval *val, bool do_array, bool null_ok)
  *
  * Build a PHP array from all attributes of a given tuple
  */
-zval *
+zval
 plphp_build_tuple_argument(HeapTuple tuple, TupleDesc tupdesc)
 {
 	int			i;
-	zval	   *output;
+	zval	    output;
 	Datum		attr;
 	bool		isnull;
 	char	   *attname;
@@ -427,17 +416,16 @@ plphp_build_tuple_argument(HeapTuple tuple, TupleDesc tupdesc)
 	Oid			typoutput;
 	Oid			typioparam;
 
-	MAKE_STD_ZVAL(output);
-	array_init(output);
+	array_init(&output);
 
 	for (i = 0; i < tupdesc->natts; i++)
 	{
 		/* Ignore dropped attributes */
-		if (tupdesc->attrs[i]->attisdropped)
+		if (tupdesc->attrs[i].attisdropped)
 			continue;
 
 		/* Get the attribute name */
-		attname = tupdesc->attrs[i]->attname.data;
+		attname = tupdesc->attrs[i].attname.data;
 
 		/* Get the attribute value */
 		attr = heap_getattr(tuple, i + 1, tupdesc, &isnull);
@@ -445,7 +433,7 @@ plphp_build_tuple_argument(HeapTuple tuple, TupleDesc tupdesc)
 		/* If it is null, set it to undef in the hash. */
 		if (isnull)
 		{
-			add_next_index_unset(output);
+			add_next_index_null(&output);
 			continue;
 		}
 
@@ -453,12 +441,12 @@ plphp_build_tuple_argument(HeapTuple tuple, TupleDesc tupdesc)
 		 * Lookup the attribute type in the syscache for the output function
 		 */
 		typeTup = SearchSysCache(TYPEOID,
-								 ObjectIdGetDatum(tupdesc->attrs[i]->atttypid),
+								 ObjectIdGetDatum(tupdesc->attrs[i].atttypid),
 								 0, 0, 0);
 		if (!HeapTupleIsValid(typeTup))
 		{
 			elog(ERROR, "cache lookup failed for type %u",
-				 tupdesc->attrs[i]->atttypid);
+				 tupdesc->attrs[i].atttypid);
 		}
 
 		typoutput = ((Form_pg_type) GETSTRUCT(typeTup))->typoutput;
@@ -469,8 +457,8 @@ plphp_build_tuple_argument(HeapTuple tuple, TupleDesc tupdesc)
 		outputstr =
 			DatumGetCString(OidFunctionCall3(typoutput, attr,
 											 ObjectIdGetDatum(typioparam),
-											 Int32GetDatum(tupdesc->attrs[i]->atttypmod)));
-		add_assoc_string(output, attname, outputstr, 1);
+											 Int32GetDatum(tupdesc->attrs[i].atttypmod)));
+		add_assoc_string(&output, attname, outputstr);
 		pfree(outputstr);
 	}
 
@@ -491,12 +479,12 @@ plphp_build_tuple_argument(HeapTuple tuple, TupleDesc tupdesc)
  * calling other triggers though).
  */
 HeapTuple
-plphp_modify_tuple(zval *outdata, TriggerData *tdata)
+plphp_modify_tuple(zval outdata, TriggerData *tdata)
 {
 	TupleDesc	tupdesc;
 	HeapTuple	rettuple;
-	zval	   *newtup;
-	zval	  **element;
+	zval	   newtup;
+	zval	  *element;
 	char	  **vals;
 	int			i;
 	AttInMetadata *attinmeta;
@@ -512,12 +500,11 @@ plphp_modify_tuple(zval *outdata, TriggerData *tdata)
 	oldcxt = MemoryContextSwitchTo(tmpcxt);
 
 	/* Fetch "new" from $_TD */
-	if (zend_hash_find(outdata->value.ht,
-					   "new", strlen("new") + 1,
-					   (void **) &element) != SUCCESS)
+	if (!(element = zend_hash_str_find(Z_ARRVAL(outdata),
+					   "new", strlen("new"))))
 		elog(ERROR, "$_TD['new'] not found");
 
-	if (Z_TYPE_P(element[0]) != IS_ARRAY)
+	if (Z_TYPE(element[0]) != IS_ARRAY)
 		elog(ERROR, "$_TD['new'] must be an array");
 	newtup = element[0];
 
@@ -525,7 +512,7 @@ plphp_modify_tuple(zval *outdata, TriggerData *tdata)
 	tupdesc = tdata->tg_relation->rd_att;
 	attinmeta = TupleDescGetAttInMetadata(tupdesc);
 
-	i = zend_hash_num_elements(Z_ARRVAL_P(newtup));
+	i = zend_hash_num_elements(Z_ARRVAL(newtup));
 
 	if (tupdesc->natts > i)
 		ereport(ERROR,
@@ -541,16 +528,15 @@ plphp_modify_tuple(zval *outdata, TriggerData *tdata)
 	 */
 	for (i = 0; i < tupdesc->natts; i++)
 	{
-		zval  **element;
-		char   *attname = NameStr(tupdesc->attrs[i]->attname);
+		zval  *element;
+		char   *attname = NameStr(tupdesc->attrs[i].attname);
 
 		/* Fetch the attribute value from the zval */
-		if (zend_symtable_find(newtup->value.ht, attname, strlen(attname) + 1,
-						   	   (void **) &element) != SUCCESS)
+		if (!(element = zend_symtable_str_find(Z_ARRVAL(newtup), attname, strlen(attname))))
 			elog(ERROR, "$_TD['new'] does not contain attribute \"%s\"",
 				 attname);
 
-		vals[i] = plphp_zval_get_cstring(element[0], true, true);
+		vals[i] = plphp_zval_get_cstring(&element[0], true, true);
 	}
 
 	/* Return to the original context so that the new tuple will survive */
