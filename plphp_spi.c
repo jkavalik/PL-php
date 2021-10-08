@@ -420,6 +420,7 @@ ZEND_FUNCTION(pg_raise)
 	else
 		zend_error(E_ERROR, "incorrect log level");
 
+	plphp_error_msg = pstrdup(message);
 	zend_error(elevel, "%s", message);
 }
 
@@ -430,7 +431,8 @@ ZEND_FUNCTION(pg_raise)
 ZEND_FUNCTION(return_next)
 {
 	MemoryContext	oldcxt;
-	zval	   param;
+	zval		param;
+	zval		*tmp;
 	HeapTuple	tup;
 	ReturnSetInfo *rsi;
 	
@@ -462,10 +464,12 @@ ZEND_FUNCTION(return_next)
 		param = get_table_arguments(current_attinmeta);
 	}
 	else if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z",
-							  &param) == FAILURE)
+							  &tmp) == FAILURE)
 	{
 		zend_error(E_WARNING, "cannot parse parameters in %s",
 				   get_active_function_name(TSRMLS_C));
+	} else {
+		param = *tmp;
 	}
 
 	/* Use the per-query context so that the tuplestore survives */
@@ -509,6 +513,8 @@ zval get_table_arguments(AttInMetadata *attinmeta)
 {
 	zval   retval;
 	int		i;
+
+	saved_symbol_table = zend_rebuild_symbol_table();
 	
 	array_init(&retval);
 
@@ -525,10 +531,11 @@ zval get_table_arguments(AttInMetadata *attinmeta)
 		attname = NameStr(attinmeta->tupdesc->attrs[i].attname);
 
 		if ((val = zend_hash_str_find(saved_symbol_table, 
-						   attname, strlen(attname))))
-
+						   attname, strlen(attname)))) {
+			
+			ZVAL_DEINDIRECT(val);
 			add_next_index_zval(&retval, val);
-		else
+		} else
 			add_next_index_null(&retval);
 	} 
 	return retval;

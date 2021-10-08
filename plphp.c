@@ -217,7 +217,7 @@ static StringInfo currmsg = NULL;
  * XXX -- it would be much better if we could save errcontext,
  * errhint, etc as well.
  */
-static char *error_msg = NULL;
+char *plphp_error_msg = NULL;
 /*
  * Forward declarations
  */
@@ -497,13 +497,13 @@ plphp_init(void)
 		zend_catch
 		{
 			plphp_first_call = true;
-			if (error_msg)
+			if (plphp_error_msg)
 			{
 				char	str[1024];
 
-				strncpy(str, error_msg, sizeof(str));
-				pfree(error_msg);
-				error_msg = NULL;
+				strncpy(str, plphp_error_msg, sizeof(str));
+				pfree(plphp_error_msg);
+				plphp_error_msg = NULL;
 				elog(ERROR, "fatal error during PL/php initialization: %s",
 					 str);
 			}
@@ -577,13 +577,13 @@ plphp_call_handler(PG_FUNCTION_ARGS)
 		zend_catch
 		{
 			REPORT_PHP_MEMUSAGE("reporting error");
-			if (error_msg)
+			if (plphp_error_msg)
 			{
 				char	str[1024];
 
-				strncpy(str, error_msg, sizeof(str));
-				pfree(error_msg);
-				error_msg = NULL;
+				strncpy(str, plphp_error_msg, sizeof(str));
+				pfree(plphp_error_msg);
+				plphp_error_msg = NULL;
 				elog(ERROR, "%s", str);
 			}
 			else
@@ -691,13 +691,13 @@ plphp_validator(PG_FUNCTION_ARGS)
 			if (tmpsrc != NULL)
 				pfree(tmpsrc);
 
-			if (error_msg)
+			if (plphp_error_msg)
 			{
 				char	str[1024];
 
-				StrNCpy(str, error_msg, sizeof(str));
-				pfree(error_msg);
-				error_msg = NULL;
+				StrNCpy(str, plphp_error_msg, sizeof(str));
+				pfree(plphp_error_msg);
+				plphp_error_msg = NULL;
 				elog(ERROR, "function \"%s\" does not validate: %s", funcname, str);
 			}
 			else
@@ -884,6 +884,7 @@ plphp_trigger_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
 	/*
 	 * In a BEFORE trigger, compute the return value.  In an AFTER trigger
 	 * it'll be ignored, so don't bother.
+	 * TODO: this can be probably simplified with new pass-by-reference - modify and null can be done by the reference, skip by unsettin new ?
 	 */
 	if (TRIGGER_FIRED_BEFORE(trigdata->tg_event))
 	{
@@ -1530,7 +1531,7 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 
 		/* XXX Is this usage of sprintf safe? */
 		if (is_trigger)
-			sprintf(complete_proc_source, "function %s($_TD){%s}",
+			sprintf(complete_proc_source, "function %s(&$_TD){%s}",
 					internal_proname, proc_source);
 		else
 			sprintf(complete_proc_source, 
@@ -1788,8 +1789,6 @@ plphp_call_php_trig(plphp_proc_desc *desc, FunctionCallInfo fcinfo,
 	char		call[64];
 	zval	  *params[1];
 
-	params[0] = trigdata;
-
 	/* Build the internal function name, and save for later cleaning */
 	sprintf(call, "plphp_proc_%u_trigger", fcinfo->flinfo->fn_oid);
 	ZVAL_STRING(&funcname, call);
@@ -1801,8 +1800,10 @@ plphp_call_php_trig(plphp_proc_desc *desc, FunctionCallInfo fcinfo,
 	 */
 	ZVAL_MAKE_REF(trigdata);
 
+	params[0] = trigdata;
+
 	if (call_user_function_ex(CG(function_table), NULL, &funcname, &retval,
-							  1, *params, 1, NULL TSRMLS_CC) == FAILURE)
+							  1, *params, 0, NULL TSRMLS_CC) == FAILURE)
 		elog(ERROR, "could not call function \"%s\"", call);
 
 	/* Return to the original state */
@@ -1885,10 +1886,10 @@ plphp_error_cb(int type, const char *filename, const uint lineno,
 		{
 			char	msgline[1024];
 			snprintf(msgline, sizeof(msgline), "%s at line %d", str, lineno);
-			error_msg = pstrdup(msgline);
+			plphp_error_msg = pstrdup(msgline);
 		}
 		else
-			error_msg = pstrdup(str);
+			plphp_error_msg = pstrdup(str);
 
 		zend_bailout();
 	}

@@ -158,7 +158,7 @@ plphp_srf_htup_from_zval(zval val, AttInMetadata *attinmeta,
 	 *
 	 * If the input zval is a scalar, use it as an element directly.
 	 */
-	if (Z_TYPE_P(&val) == IS_ARRAY)
+	if (Z_TYPE(val) == IS_ARRAY || (Z_ISREF(val) && Z_TYPE_P(Z_REFVAL(val)) == IS_ARRAY))
 	{
 		if (attinmeta->tupdesc->natts == 1)
 		{
@@ -197,6 +197,7 @@ plphp_srf_htup_from_zval(zval val, AttInMetadata *attinmeta,
 	}
 	else
 	{
+		elog(ERROR, "array value is instead %d", Z_TYPE(val));
 		/* The passed zval is not an array -- use as the only attribute */
 		if (attinmeta->tupdesc->natts != 1)
 			ereport(ERROR,
@@ -388,6 +389,9 @@ plphp_zval_get_cstring(zval *val, bool do_array, bool null_ok)
 			if (!do_array)
 				elog(ERROR, "can't stringize array value");
 			ret = plphp_convert_to_pg_array(val);
+			break;
+		case IS_REFERENCE:
+			ret = plphp_zval_get_cstring(Z_REFVAL_P(val), do_array, null_ok);
 			break;
 		default:
 			/* keep compiler quiet */
