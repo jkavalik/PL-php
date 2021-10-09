@@ -394,7 +394,8 @@ ZEND_FUNCTION(pg_raise)
 			   *message = NULL;
 	size_t     level_len,
 				message_len;
-	int			elevel = 0;
+	int			elevel = 0,
+				plevel = 0;
 
 	if (ZEND_NUM_ARGS() != 2)
 	{
@@ -411,16 +412,23 @@ ZEND_FUNCTION(pg_raise)
 				   get_active_function_name(TSRMLS_C));
 	}
 
-	if (strcasecmp(level, "ERROR") == 0)
+	if (strcasecmp(level, "ERROR") == 0) {
 		elevel = E_ERROR;
-	else if (strcasecmp(level, "WARNING") == 0)
+		plevel = ERROR;
+	} else if (strcasecmp(level, "WARNING") == 0) {
 		elevel = E_WARNING;
-	else if (strcasecmp(level, "NOTICE") == 0)
+		plevel = WARNING;
+	} else if (strcasecmp(level, "NOTICE") == 0) {
 		elevel = E_NOTICE;
-	else
+		plevel = NOTICE;
+	} else {
 		zend_error(E_ERROR, "incorrect log level");
+	}
 
-	plphp_error_msg = pstrdup(message);
+	if (elevel == E_ERROR)
+		plphp_error_msg = pstrdup(message);
+	else
+		elog(plevel, "%s", message);
 	zend_error(elevel, "%s", message);
 }
 
