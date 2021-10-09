@@ -178,6 +178,7 @@ ZEND_FUNCTION(spi_exec)
 		 */
 		SPI_restore_connection();
 
+		plphp_error_msg = pstrdup(edata->message);
 		/* bail PHP out */
 		zend_error(E_ERROR, "%s", strdup(edata->message));
 
