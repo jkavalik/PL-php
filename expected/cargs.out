@@ -1,3 +1,5 @@
+begin;
+BEGIN
 --
 -- Testing composite type arguments
 --
@@ -6,13 +8,18 @@ CREATE TABLE employee (
 	basesalary integer,
 	bonus integer
 );
+CREATE TABLE
 CREATE FUNCTION empcomp(employee) RETURNS integer
 LANGUAGE plphp AS $$
 	return $args[0]['basesalary'] + $args[0]['bonus'];
 $$;
+CREATE FUNCTION
 INSERT INTO employee VALUES('plphp', 11, 22);
+INSERT 0 1
 INSERT INTO employee VALUES('this is a very long name for a person really, but who cares?', 142857 * 3, 142857 * 4);
+INSERT 0 1
 INSERT INTO employee VALUES('Josh Drake', 150000, 300000);
+INSERT 0 1
 SELECT name, empcomp(employee) FROM employee;
                              name                             | empcomp 
 --------------------------------------------------------------+---------
@@ -25,12 +32,14 @@ CREATE TYPE php_complex AS (
 	real	float,
 	imag	float
 );
+CREATE TYPE
 CREATE FUNCTION sum(php_complex, php_complex) RETURNS php_complex
 LANGUAGE plphp AS $$
 	$ret['real'] = $args[0]['real'] + $args[1]['real'];
 	$ret['imag'] = $args[0]['imag'] + $args[1]['imag'];
 	return $ret;
 $$;
+CREATE FUNCTION
 SELECT sum(row(3, 5)::php_complex, row(10, 20)::php_complex);
    sum   
 ---------
@@ -42,9 +51,12 @@ LANGUAGE plphp AS $$
 	return array('real' => $args[0]['real'] * $args[1],
 		     'imag' => $args[0]['imag'] * $args[1]);
 $$;
+CREATE FUNCTION
 SELECT multiply(row(15.2, 22.9), 3.1);
    multiply    
 ---------------
  (47.12,70.99)
 (1 row)
 
+rollback;
+ROLLBACK

@@ -1,3 +1,4 @@
+begin;
 --
 -- Test the validator
 --
@@ -19,3 +20,5 @@ CREATE FUNCTION valid2() RETURNS void LANGUAGE plphp AS $$
 	return array();
 $$;
 select valid2();
+
+rollback;

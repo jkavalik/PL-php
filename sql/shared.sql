@@ -1,3 +1,4 @@
+begin;
 --
 -- $_SHARED test
 --
@@ -33,3 +34,5 @@ SELECT php_get_shared_ary('fourth');
 SELECT (php_get_shared_ary('fourth'))[1];
 SELECT (php_get_shared_ary('fourth'))[1];
 SELECT (php_get_shared_ary('fourth'))[2];
+
+rollback;

@@ -1,3 +1,4 @@
+begin;
 --
 -- Test trigger capabilities
 --
@@ -178,3 +179,5 @@ language plphp as $$
 	return 'MODIFY';
 $$;
 insert into foo values (1, 'one');
+
+rollback;

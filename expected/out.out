@@ -1,4 +1,7 @@
+begin;
+BEGIN
 CREATE SCHEMA plphp;
+CREATE SCHEMA
 -- check an SRF with multiple OUT arguments.
 CREATE OR REPLACE FUNCTION plphp.multiple_out(number OUT INTEGER, prefered OUT TEXT) RETURNS SETOF RECORD
 AS $$
@@ -18,6 +21,7 @@ AS $$
 	}
 	return;
 $$ LANGUAGE plphp;
+CREATE FUNCTION
 SELECT * FROM plphp.multiple_out(); 
  number | prefered 
 --------+----------
@@ -40,6 +44,7 @@ AS $$
 	$b = $s;
 	$s += $a;
 $$ LANGUAGE plphp;
+CREATE FUNCTION
 SELECT * FROM plphp.inout(24, 42);
  s  | a  | b  
 ----+----+----
@@ -58,6 +63,7 @@ $$
 			return_next(array($number, $square));
 	}
 $$ LANGUAGE plphp;
+CREATE FUNCTION
 SELECT * FROM plphp.table_out(10);
  number | square 
 --------+--------
@@ -79,5 +85,8 @@ $$
  
   return(array(1,2));
 $$ LANGUAGE plphp;
+CREATE FUNCTION
 SELECT * FROM plphp.out_invalid();
 ERROR:  "long identifier" can not be used as a PHP variable name
+rollback;
+ROLLBACK

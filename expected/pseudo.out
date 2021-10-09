@@ -1,3 +1,5 @@
+begin;
+BEGIN
 --
 -- Test pseudotypes and composite type support
 CREATE OR REPLACE FUNCTION php_record(integer) RETURNS record
@@ -7,6 +9,7 @@ LANGUAGE plphp AS $$
 	$ret['f3']="hey goodbye world, now it's been really nice to meet you";
 	return $ret;
 $$;
+CREATE FUNCTION
 SELECT * FROM php_record(1) AS (f1 integer, f2 text, f3 text);
  f1 |                       f2                        |                            f3                            
 ----+-------------------------------------------------+----------------------------------------------------------
@@ -17,6 +20,7 @@ CREATE OR REPLACE FUNCTION php_array(anyelement, anyelement, integer)
 RETURNS anyarray LANGUAGE plphp AS $$
 	return $args;
 $$;
+CREATE FUNCTION
 SELECT php_array(3,2,1);
  php_array 
 -----------
@@ -24,19 +28,33 @@ SELECT php_array(3,2,1);
 (1 row)
 
 CREATE TABLE numbers (id int, spanish text, french text);
+CREATE TABLE
 insert into numbers values (1, 'uno', 'un');
+INSERT 0 1
 insert into numbers values (2, 'dos', 'deux');
+INSERT 0 1
 insert into numbers values (3, 'tres', 'trois');
+INSERT 0 1
 insert into numbers values (4, 'cuatro', 'quatre');
+INSERT 0 1
 insert into numbers values (5, 'cinco', 'cinq');
+INSERT 0 1
 insert into numbers values (6, 'seis', 'six');
+INSERT 0 1
 insert into numbers values (7, 'siete', 'sept');
+INSERT 0 1
 insert into numbers values (8, 'ocho', 'huit');
+INSERT 0 1
 insert into numbers values (9, 'nueve', 'neuf');
+INSERT 0 1
 CREATE TABLE languages (id int, langname text);
+CREATE TABLE
 insert into languages values (1, 'spanish');
+INSERT 0 1
 insert into languages values (2, 'french');
+INSERT 0 1
 CREATE TYPE translated_number AS (number int, translation text, language text);
+CREATE TYPE
 CREATE FUNCTION translated_number(numbers, languages)
 RETURNS translated_number LANGUAGE plphp AS $$
 	$ret = array();
@@ -45,6 +63,7 @@ RETURNS translated_number LANGUAGE plphp AS $$
 	$ret['language'] = $args[1]['langname'];
 	return $ret;
 $$;
+CREATE FUNCTION
 SELECT (translated_number(numbers.*, languages.*)).*
   FROM numbers,languages
  WHERE numbers.id = 3 AND languages.id = 2;
@@ -62,3 +81,5 @@ SELECT * FROM translated_number(
    1000 | mil (french) | french
 (1 row)
 
+rollback;
+ROLLBACK

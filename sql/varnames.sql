@@ -1,3 +1,4 @@
+begin;
 --
 -- Variable names.
 --
@@ -44,5 +45,4 @@ $$;
 
 select php_invalidvarname('foo');
 
-
-
+rollback;

@@ -1,21 +1,26 @@
+begin;
+BEGIN
 --
 -- Test Set-returning functions
 --
 -- Test a function returning nothing
 create function retnothing() returns setof record
 language plphp as $$ ; $$;
+CREATE FUNCTION
 select * from retnothing() as a(a int);
  a 
 ---
 (0 rows)
 
 create type nothing as (a int[]);
+CREATE TYPE
 create function retnothing2() returns setof nothing
 language plphp as $$
 pg_raise('notice', 'hello world');
 return;
 pg_raise('error', 'fatal error');
 $$;
+CREATE FUNCTION
 select * from retnothing2();
 NOTICE:  plphp: hello world
  a 
@@ -29,6 +34,7 @@ language plphp as $$
 	return_next(array(2, 'world'));
 	return_next(array(3, 'plphp rocks!'));
 $$;
+CREATE FUNCTION
 select * from retset() as f(a int, b text);
  a |      b       
 ---+--------------
@@ -39,12 +45,14 @@ select * from retset() as f(a int, b text);
 
 -- Try a predeclared type
 create type type_foo as (a int, b text);
+CREATE TYPE
 create function retset2() returns setof type_foo
 language plphp as $$
 	return_next(array(1, 'hello'));
 	return_next(array(2, 'world'));
 	return_next(array(3, 'plphp rocks!'));
 $$;
+CREATE FUNCTION
 select * from retset2();
  a |      b       
 ---+--------------
@@ -60,6 +68,7 @@ language plphp as $$
 		return_next($args[1] * $i);
 	}
 $$;
+CREATE FUNCTION
 select * from retset3(10, 3);
  retset3 
 ---------
@@ -82,6 +91,7 @@ language plphp as $$
 		return_next(array($args[1] * $i));
 	}
 $$;
+CREATE FUNCTION
 select * from retset4(10, 3);
  retset4 
 ---------
@@ -104,6 +114,7 @@ language plphp as $$
 		return_next($args[3] * $i);
 	}
 $$;
+CREATE FUNCTION
 select * from retset5(5, 2);
 ERROR:  cannot use return_next in functions not declared to return a set
 -- Try to return setof array
@@ -113,6 +124,7 @@ language plphp as $$
 		return_next(array(array($args[1] * $i, $i)));
 	}
 $$;
+CREATE FUNCTION
 select * from retset6(10, 2);
   retset6  
 -----------
@@ -135,6 +147,7 @@ language plphp as $$
 		return_next(array($args[1] * $i, $i));
 	}
 $$;
+CREATE FUNCTION
 select * from retset7(10, 2);
  retset7 
 ---------
@@ -151,6 +164,7 @@ select * from retset7(10, 2);
 (10 rows)
 
 create type dual_int_arr as (label text, a int[], b int[]);
+CREATE TYPE
 create or replace function retset8(int, int) returns setof dual_int_arr
 language plphp as $$
 	for ($i = 1; $i <= $args[0]; $i++) {
@@ -163,6 +177,7 @@ language plphp as $$
 		));
 	}
 $$;
+CREATE FUNCTION
 select * from retset8(10, 2);
 WARNING:  more elements in array than attributes in return type
 WARNING:  more elements in array than attributes in return type
@@ -189,7 +204,9 @@ WARNING:  more elements in array than attributes in return type
 (10 rows)
 
 create table large_table (a int);
+CREATE TABLE
 insert into large_table select * from generate_series(1, 10000);
+INSERT 0 10000
 create or replace function duplicate(text, text) returns setof int
 language plphp as $$
   $r = spi_exec("select $args[1] as a from $args[0]");
@@ -197,7 +214,9 @@ language plphp as $$
   	return_next($row['a'] * 2);
   }
 $$;
+CREATE FUNCTION
 create table duplicated as select * from duplicate('large_table', 'a');
+SELECT 10000
 select min(duplicate) from duplicated;
  min 
 -----
@@ -210,3 +229,5 @@ select count(*) from duplicated;
  10000
 (1 row)
 
+rollback;
+ROLLBACK

@@ -1,3 +1,4 @@
+begin;
 --
 -- Test pseudotypes and composite type support
 
@@ -52,3 +53,5 @@ SELECT * FROM translated_number(
 	row(1000, 'mil (spanish)', 'mil (french)')::numbers,
 	row(1, 'french')::languages
 );
+
+rollback;

@@ -1,3 +1,5 @@
+begin;
+BEGIN
 -- Test SKIP and MODIFY
 CREATE FUNCTION trigfunc_ins() RETURNS trigger LANGUAGE plphp AS $$
 	$a = $_TD['new']['a'];
@@ -14,21 +16,29 @@ CREATE FUNCTION trigfunc_ins() RETURNS trigger LANGUAGE plphp AS $$
 		pg_raise('error', "value a=$a is not allowed");
 	}
 $$;
+CREATE FUNCTION
 create table b (a int);
+CREATE TABLE
 create trigger trigtest12 before insert on b for each row execute procedure trigfunc_ins();
+CREATE TRIGGER
 insert into b values (1);
+INSERT 0 0
 insert into b values (2);
+INSERT 0 1
 insert into b values (3);
-ERROR:  value a=3 is not allowed at line 13
+ERROR:  value a=3 is not allowed
 insert into b values (4);
+INSERT 0 1
 insert into b values (5);
 ERROR:  expected trigger function to return NULL, 'SKIP' or 'MODIFY'
 insert into b values (6);
-ERROR:  value a=6 is not allowed at line 13
+ERROR:  value a=6 is not allowed
 insert into b values (1);
+INSERT 0 0
 insert into b values (3);
-ERROR:  value a=3 is not allowed at line 13
+ERROR:  value a=3 is not allowed
 insert into b values (2);
+INSERT 0 1
 select * from b;
  a 
 ---
@@ -37,3 +47,5 @@ select * from b;
  3
 (3 rows)
 
+rollback;
+ROLLBACK

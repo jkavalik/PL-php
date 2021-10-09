@@ -429,7 +429,7 @@ ZEND_FUNCTION(pg_raise)
 	if (elevel == E_ERROR)
 		plphp_error_msg = pstrdup(message);
 	else
-		elog(plevel, "%s", message);
+		elog(plevel, "plphp: %s", message);
 	zend_error(elevel, "%s", message);
 }
 

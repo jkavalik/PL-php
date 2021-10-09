@@ -1,3 +1,4 @@
+begin;
 --
 -- Testing composite type arguments
 --
@@ -41,3 +42,5 @@ LANGUAGE plphp AS $$
 $$;
 
 SELECT multiply(row(15.2, 22.9), 3.1);
+
+rollback;

@@ -1,3 +1,5 @@
+begin;
+
 CREATE SCHEMA plphp;
 
 -- check an SRF with multiple OUT arguments.
@@ -57,3 +59,4 @@ $$ LANGUAGE plphp;
 
 SELECT * FROM plphp.out_invalid();
 
+rollback;

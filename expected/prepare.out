@@ -1,4 +1,5 @@
 begin;
+BEGIN
 --
 -- Create tables and functions
 --
@@ -6,9 +7,9 @@ CREATE TABLE test (
 	i int,
 	v varchar
 );
-
+CREATE TABLE
 CREATE TYPE __testrowphp AS (f1 integer, f2 text, f3 text);
-
+CREATE TYPE
 CREATE OR REPLACE FUNCTION php_set (integer) RETURNS SETOF __testrowphp AS '
 $ret[0][f1] = $args[0];
 $ret[0][f2] = "hello";
@@ -23,24 +24,25 @@ $ret[2][f2] = "hello";
 $ret[2][f3] = "plphp";
 return $ret;
 ' LANGUAGE 'plphp';
-
+CREATE FUNCTION
 CREATE OR REPLACE FUNCTION php_set_i (integer) RETURNS SETOF integer AS '
 $ret[0]=$args[0];
 $ret[1]=2*$args[0];
 $ret[2]=3*$args[0];
 return $ret;
 ' LANGUAGE 'plphp';
-
-
+CREATE FUNCTION
 INSERT INTO employee VALUES('plphp', 11, 22);
-
+ERROR:  relation "employee" does not exist
+LINE 1: INSERT INTO employee VALUES('plphp', 11, 22);
+                    ^
 CREATE FUNCTION empcomp(employee) RETURNS integer AS '
     return $args[0][''basesalary''] + $args[0][''bonus''];
 ' LANGUAGE plphp;
-
-
+ERROR:  type employee does not exist
 CREATE OR REPLACE FUNCTION php_arr_in(integer, integer[][]) returns integer AS '
 return $args[1][0][1];
 ' language plphp;
-
+CREATE FUNCTION
 rollback;
+ROLLBACK

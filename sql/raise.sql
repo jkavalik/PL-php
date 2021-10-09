@@ -1,3 +1,4 @@
+begin;
 -- Test SKIP and MODIFY
 CREATE FUNCTION trigfunc_ins() RETURNS trigger LANGUAGE plphp AS $$
 	$a = $_TD['new']['a'];
@@ -29,3 +30,5 @@ insert into b values (1);
 insert into b values (3);
 insert into b values (2);
 select * from b;
+
+rollback;

@@ -1,3 +1,4 @@
+begin;
 --
 -- Base functionality.
 --
@@ -176,3 +177,5 @@ select php_fib(1);
 select php_fib(3);
 select php_fib(5);
 select php_fib(7);
+
+rollback;

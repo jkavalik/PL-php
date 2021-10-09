@@ -1,3 +1,5 @@
+begin;
+BEGIN
 --
 -- Variable names.
 --
@@ -6,6 +8,7 @@ CREATE FUNCTION zero(a int, b int) RETURNS int LANGUAGE plphp AS
 $$
 	return $a * $args[1] - $b * $args[0];
 $$;
+CREATE FUNCTION
 SELECT zero((random() * 100) :: int, (random() * 100) :: int);
  zero 
 ------
@@ -17,6 +20,7 @@ CREATE FUNCTION obscure_concat(prefix text, text) RETURNS text LANGUAGE plphp AS
 $$
 	return $prefix . $args[1];
 $$;
+CREATE FUNCTION
 SELECT obscure_concat('Testing can only prove the presence of bugs', ', not their absence. ');
                           obscure_concat                          
 ------------------------------------------------------------------
@@ -34,6 +38,7 @@ RETURNS text LANGUAGE plphp AS
 		return "Good";
 ';
 NOTICE:  identifier "areallylooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooongvariablename" will be truncated to "areallylooooooooooooooooooooooooooooooooooooooooooooooooooooooo"
+CREATE FUNCTION
 select foo('bar');
  foo  
 ------
@@ -50,7 +55,9 @@ ERROR:  syntax error at or near "check"
 LINE 1: CREATE FUNCTION php_invalidvarname( check%s%d%s%d%s%d text)
                                             ^
 select php_invalidvarname('foo');
-ERROR:  function php_invalidvarname("unknown") does not exist
+ERROR:  function php_invalidvarname(unknown) does not exist
 LINE 1: select php_invalidvarname('foo');
                ^
-HINT:  No function matches the given name and argument types. You may need to add explicit type casts.
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+rollback;
+ROLLBACK

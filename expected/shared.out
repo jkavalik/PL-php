@@ -1,3 +1,5 @@
+begin;
+BEGIN
 --
 -- $_SHARED test
 --
@@ -6,10 +8,12 @@ CREATE OR REPLACE FUNCTION php_set_shared (text, text) RETURNS text AS $$
   $_SHARED[$args[0]] = $args[1];
   return 'ok';
 $$ LANGUAGE plphp;
+CREATE FUNCTION
 CREATE OR REPLACE FUNCTION php_get_shared (text) RETURNS text AS $$
   global $_SHARED;
   return $_SHARED[$args[0]];
 $$ LANGUAGE plphp;
+CREATE FUNCTION
 SELECT php_set_shared('first', 'hello plphp');
  php_set_shared 
 ----------------
@@ -51,6 +55,7 @@ CREATE OR REPLACE FUNCTION php_get_shared_ary (text) RETURNS text[] AS $$
   global $_SHARED;
   return $_SHARED[$args[0]];
 $$ LANGUAGE plphp;
+CREATE FUNCTION
 SELECT php_set_shared('fourth', $${'hip', 'hooray'}$$);
  php_set_shared 
 ----------------
@@ -83,3 +88,5 @@ SELECT (php_get_shared_ary('fourth'))[2];
  hooray
 (1 row)
 
+rollback;
+ROLLBACK

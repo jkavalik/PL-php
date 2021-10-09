@@ -1,3 +1,5 @@
+begin;
+
 create or replace function test_spi_1(int) returns int language plphp as $$
 	$query = "select generate_series(1, $args[0])";
 	$result = spi_exec($query);
@@ -86,3 +88,5 @@ select div_by_zero('{1,2,3}', 0);
 
 -- 1/2 + 2/2 + 3/2 = 3
 select div_by_zero('{1,2,3}', 2);
+
+rollback;

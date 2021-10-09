@@ -1,3 +1,5 @@
+begin;
+BEGIN
 --
 -- Base functionality.
 --
@@ -6,6 +8,7 @@ CREATE FUNCTION test_void() RETURNS integer
 LANGUAGE plphp AS $$
 	return;
 $$;
+CREATE FUNCTION
 SELECT test_void();
  test_void 
 -----------
@@ -16,6 +19,7 @@ CREATE FUNCTION test_an_int() RETURNS integer
 LANGUAGE plphp AS $$
 	return 1;
 $$;
+CREATE FUNCTION
 SELECT test_an_int();
  test_an_int 
 -------------
@@ -32,6 +36,7 @@ CREATE FUNCTION test_an_array() RETURNS int[]
 LANGUAGE plphp AS $$
 	return array(1);
 $$;
+CREATE FUNCTION
 SELECT test_an_array();
  test_an_array 
 ---------------
@@ -48,6 +53,7 @@ CREATE FUNCTION test_a_bogus_array() RETURNS int[]
 LANGUAGE plphp AS $$
 	return 1;
 $$;
+CREATE FUNCTION
 SELECT test_a_bogus_array();
 ERROR:  function declared to return array must return an array
 SELECT * FROM test_a_bogus_array();
@@ -56,6 +62,7 @@ CREATE FUNCTION test_a_bogus_int() RETURNS integer
 LANGUAGE plphp AS $$
 	return array(1);
 $$;
+CREATE FUNCTION
 SELECT test_a_bogus_int();
 ERROR:  this plphp function cannot return arrays
 SELECT * FROM test_a_bogus_int();
@@ -74,6 +81,7 @@ LANGUAGE plphp AS $$
     $return = bar($args[0], $args[1]);
     return $return;
 $$;
+CREATE FUNCTION
 SELECT test_ndim_array(1, 1);
  test_ndim_array 
 -----------------
@@ -118,6 +126,7 @@ STRICT LANGUAGE plphp AS $$
 		return $args[0];
 	} else return $args[1];
 $$;
+CREATE FUNCTION
 CREATE FUNCTION php_max_null (integer, integer) RETURNS integer
 CALLED ON NULL INPUT LANGUAGE plphp AS $$
 	if (!isset($args[0])) {
@@ -132,6 +141,7 @@ CALLED ON NULL INPUT LANGUAGE plphp AS $$
                 return $args[0];
         } else return $args[1];
 $$;
+CREATE FUNCTION
 SELECT php_max(1, 2);
  php_max 
 ---------
@@ -205,6 +215,7 @@ STRICT LANGUAGE plphp AS $$
 	}
 	return $args[1];
 $$;
+CREATE FUNCTION
 SELECT php_str_max('foo', 'bar');
  php_str_max 
 -------------
@@ -227,14 +238,17 @@ CREATE FUNCTION php_substr(text, int, int) RETURNS text
 STRICT LANGUAGE plphp AS $$
 	return substr($args[0], $args[1], $args[2]);
 $$;
+CREATE FUNCTION
 CREATE FUNCTION php_concat(text, text) RETURNS text
 STRICT LANGUAGE plphp AS $$
 	return $args[0] . $args[1];
 $$;
+CREATE FUNCTION
 CREATE FUNCTION php_lc(text) RETURNS text
 STRICT LANGUAGE plphp AS $$
 	return strtolower($args[0]);
 $$;
+CREATE FUNCTION
 SELECT php_concat(
 	php_substr($$On Saturday, we spent a day sight-seeing, mainly in Kamakura where we visted a couple of temples and a very large cast iron Buddha. Lunch was Korean barbeque, following which we took a trip back to Tokyo station on the Shinkansen, or Bullet Train.$$, 16, 25),
 	php_lc($$A few beers in the 'Victorian Pub'$$)
@@ -248,6 +262,7 @@ CREATE FUNCTION php_arr_in(integer[], integer, integer)
 returns integer language plphp AS $$
 	return $args[0][$args[1]][$args[2]];
 $$;
+CREATE FUNCTION
 SELECT php_arr_in(ARRAY[[1, 10], [2, 4], [3, 5]], 0, 0);
  php_arr_in 
 ------------
@@ -279,6 +294,7 @@ CREATE FUNCTION php_array() RETURNS integer[] AS $$
 
  return array($ret1, $ret2);
 $$ language plphp;
+CREATE FUNCTION
 select php_array();
      php_array     
 -------------------
@@ -288,6 +304,7 @@ select php_array();
 create function foo() returns record language plphp as $$
 	return 1;
 $$;
+CREATE FUNCTION
 select foo();
 ERROR:  function declared to return tuple must return an array
 select * FROM foo() as (a int);
@@ -296,6 +313,7 @@ create or replace function foo(anyelement) returns anyarray
 language plphp as $$
 	return 1;
 $$;
+CREATE FUNCTION
 select foo(1);
 ERROR:  function declared to return array must return an array
 -- test recursive functions
@@ -309,6 +327,7 @@ create function php_fib(int) returns int language plphp as $$
   $b = $row['b'];
   return $a + $b;
 $$;
+CREATE FUNCTION
 select php_fib(1);
  php_fib 
 ---------
@@ -333,3 +352,5 @@ select php_fib(7);
       21
 (1 row)
 
+rollback;
+ROLLBACK

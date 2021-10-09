@@ -1,3 +1,4 @@
+begin;
 --
 -- Test Set-returning functions
 --
@@ -109,3 +110,5 @@ $$;
 create table duplicated as select * from duplicate('large_table', 'a');
 select min(duplicate) from duplicated;
 select count(*) from duplicated;
+
+rollback;

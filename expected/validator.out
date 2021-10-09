@@ -1,3 +1,5 @@
+begin;
+BEGIN
 --
 -- Test the validator
 --
@@ -12,10 +14,12 @@ ERROR:  function "invalid" does not validate: syntax error, unexpected $end at l
 CREATE OR REPLACE FUNCTION valid() RETURNS void LANGUAGE plphp AS $$
 	array_append();
 $$;
+CREATE FUNCTION
 select valid();
 ERROR:  Call to undefined function array_append() at line 2
 CREATE FUNCTION valid2() RETURNS void LANGUAGE plphp AS $$
 	return array();
 $$;
+CREATE FUNCTION
 select valid2();
 ERROR:  this plphp function cannot return arrays
