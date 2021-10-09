@@ -197,7 +197,7 @@ plphp_srf_htup_from_zval(zval val, AttInMetadata *attinmeta,
 	}
 	else
 	{
-		elog(ERROR, "array value is instead %d", Z_TYPE(val));
+		elog(NOTICE, "array value is instead %d", Z_TYPE(val));
 		/* The passed zval is not an array -- use as the only attribute */
 		if (attinmeta->tupdesc->natts != 1)
 			ereport(ERROR,
