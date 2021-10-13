@@ -27,7 +27,6 @@ SELECT php_get_shared('first');
 (1 row)
 
 SELECT php_get_shared('second');
-NOTICE:  plphp: Undefined index:  second
  php_get_shared 
 ----------------
  

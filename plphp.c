@@ -103,8 +103,8 @@
 #endif
 
 #define INI_HARDCODED(name,value) \
-		zend_alter_ini_entry(zend_string_init(name, sizeof(name)-1, 0), zend_string_init(value, strlen(value)-1, 1), \
-							 PHP_INI_SYSTEM, PHP_INI_STAGE_ACTIVATE);
+		zend_alter_ini_entry_ex(zend_string_init(name, sizeof(name)-1, 0), zend_string_init(value, strlen(value)-1, 1), \
+							 PHP_INI_SYSTEM, PHP_INI_STAGE_ACTIVATE, 1);
 
 /* Check for PostgreSQL version */
 #if (CATALOG_VERSION_NO >= 200709301)
@@ -277,7 +277,7 @@ perm_fmgr_info(Oid functionId, FmgrInfo *finfo)
  * sapi_plphp_write
  * 		Called when PHP wants to write something to stdout.
  *
- * We just save the output in a StringInfo until the next Flush call.
+ * If it ends with \n, we flush it. Otherwise we just save the output in a StringInfo until the next Flush call.
  */
 static size_t
 sapi_plphp_write(const char *str, size_t str_length TSRMLS_DC)
@@ -287,6 +287,22 @@ sapi_plphp_write(const char *str, size_t str_length TSRMLS_DC)
 
 	appendStringInfoString(currmsg, str);
 
+	Assert(currmsg->data != NULL);
+
+	if (currmsg->data[currmsg->len - 1] == '\n')
+	{
+		/*
+			* remove the trailing newline because elog() inserts another
+			* one
+			*/
+		currmsg->data[currmsg->len - 1] = '\0';
+		elog(LOG, "%s", currmsg->data);
+
+		pfree(currmsg->data);
+		pfree(currmsg);
+		currmsg = NULL;
+	}
+
 	return str_length;
 }
 
@@ -294,10 +310,7 @@ sapi_plphp_write(const char *str, size_t str_length TSRMLS_DC)
  * sapi_plphp_flush
  * 		Called when PHP wants to flush stdout.
  *
- * The stupid PHP implementation calls write and follows with a Flush right
- * away -- a good implementation would write several times and flush when the
- * message is complete.  To make the output look reasonable in Postgres, we
- * skip the flushing if the accumulated message does not end in a newline.
+ * Somehow this does not get called nearly often enough even with implicit_flush enabled in 7.4
  */
 static void
 sapi_plphp_flush(void *sth)
@@ -450,6 +463,7 @@ plphp_init(void)
 			INI_HARDCODED("implicit_flush", "1");
 			INI_HARDCODED("max_execution_time", "0");
 			INI_HARDCODED("max_input_time", "-1");
+			INI_HARDCODED("output_buffering", "off");
 
 			/*
 			 * Set memory limit to ridiculously high value.  This helps the

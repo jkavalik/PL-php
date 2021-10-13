@@ -282,7 +282,6 @@ SELECT php_arr_in(ARRAY[[1, 10], [2, 4], [3, 5]], 2, 1);
 (1 row)
 
 SELECT php_arr_in(ARRAY[[1, 10], [2, 4], [3, 5]], 1, 2);
-NOTICE:  plphp: Undefined index:  2
  php_arr_in 
 ------------
            

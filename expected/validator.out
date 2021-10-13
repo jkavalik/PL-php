@@ -6,20 +6,22 @@ BEGIN
 CREATE FUNCTION invalid() RETURNS void LANGUAGE plphp AS $$
 	asdasd
 $$;
-ERROR:  function "invalid" does not validate: syntax error, unexpected '}' at line 3
+ERROR:  function "invalid" does not validate
 CREATE FUNCTION invalid() RETURNS void LANGUAGE plphp AS $$
 	{
 $$;
-ERROR:  function "invalid" does not validate: syntax error, unexpected $end at line 3
+ERROR:  function "invalid" does not validate
 CREATE OR REPLACE FUNCTION valid() RETURNS void LANGUAGE plphp AS $$
 	array_append();
 $$;
 CREATE FUNCTION
 select valid();
-ERROR:  Call to undefined function array_append() at line 2
+ERROR:  could not call function "plphp_proc_478909"
 CREATE FUNCTION valid2() RETURNS void LANGUAGE plphp AS $$
 	return array();
 $$;
 CREATE FUNCTION
 select valid2();
-ERROR:  this plphp function cannot return arrays
+ERROR:  could not call function "plphp_proc_478910"
+rollback;
+ROLLBACK
