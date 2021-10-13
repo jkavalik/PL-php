@@ -1,0 +1,41 @@
+begin;
+BEGIN
+--
+-- Test forbidden functions
+--
+CREATE FUNCTION test_show_source() RETURNS text
+LANGUAGE plphp AS $$
+	return show_source();
+$$;
+CREATE FUNCTION
+SELECT test_show_source();
+ test_show_source 
+------------------
+ 
+(1 row)
+
+SELECT * FROM test_show_source();
+ test_show_source 
+------------------
+ 
+(1 row)
+
+CREATE FUNCTION test_exec() RETURNS text
+LANGUAGE plphp AS $$
+	return exec("psql --version");
+$$;
+CREATE FUNCTION
+SELECT test_exec();
+ test_exec 
+-----------
+ 
+(1 row)
+
+SELECT * FROM test_exec();
+ test_exec 
+-----------
+ 
+(1 row)
+
+rollback;
+ROLLBACK

@@ -277,7 +277,7 @@ perm_fmgr_info(Oid functionId, FmgrInfo *finfo)
  * sapi_plphp_write
  * 		Called when PHP wants to write something to stdout.
  *
- * If it ends with \n, we flush it. Otherwise we just save the output in a StringInfo until the next Flush call.
+ * We just save the output in a StringInfo until the next Flush call.
  */
 static size_t
 sapi_plphp_write(const char *str, size_t str_length TSRMLS_DC)
@@ -287,30 +287,12 @@ sapi_plphp_write(const char *str, size_t str_length TSRMLS_DC)
 
 	appendStringInfoString(currmsg, str);
 
-	Assert(currmsg->data != NULL);
-
-	if (currmsg->data[currmsg->len - 1] == '\n')
-	{
-		/*
-			* remove the trailing newline because elog() inserts another
-			* one
-			*/
-		currmsg->data[currmsg->len - 1] = '\0';
-		elog(LOG, "%s", currmsg->data);
-
-		pfree(currmsg->data);
-		pfree(currmsg);
-		currmsg = NULL;
-	}
-
 	return str_length;
 }
 
 /*
  * sapi_plphp_flush
  * 		Called when PHP wants to flush stdout.
- *
- * Somehow this does not get called nearly often enough even with implicit_flush enabled in 7.4
  */
 static void
 sapi_plphp_flush(void *sth)
@@ -382,6 +364,15 @@ static sapi_module_struct plphp_sapi_module = {
 	STANDARD_SAPI_MODULE_PROPERTIES
 };
 
+const char HARDCODED_INI[] =
+	"html_errors=0\n"
+	"register_argc_argv=0\n"
+	"implicit_flush=1\n"
+	"output_buffering=0\n"
+	"max_execution_time=0\n"
+	"max_input_time=-1\n"
+	"disable_functions=exec,passthru,shell_exec,system,proc_open,popen,curl_exec,curl_multi_exec,parse_ini_file,show_source\n\0";
+
 /*
  * plphp_init_all()		- Initialize all
  *
@@ -433,6 +424,9 @@ plphp_init(void)
 			plphp_sapi_module.phpinfo_as_text = 1;
 			sapi_startup(&plphp_sapi_module);
 
+			plphp_sapi_module.ini_entries = malloc(sizeof(HARDCODED_INI));
+			memcpy(plphp_sapi_module.ini_entries, HARDCODED_INI, sizeof(HARDCODED_INI));
+
 			if (php_module_startup(&plphp_sapi_module, NULL, 0) == FAILURE)
 				elog(ERROR, "php_module_startup call failed");
 
@@ -456,14 +450,6 @@ plphp_init(void)
 
 			/* Set some defaults */
 			SG(options) |= SAPI_OPTION_NO_CHDIR;
-
-			/* Hard coded defaults which cannot be overwritten in the ini file */
-			INI_HARDCODED("register_argc_argv", "0");
-			INI_HARDCODED("html_errors", "0");
-			INI_HARDCODED("implicit_flush", "1");
-			INI_HARDCODED("max_execution_time", "0");
-			INI_HARDCODED("max_input_time", "-1");
-			INI_HARDCODED("output_buffering", "off");
 
 			/*
 			 * Set memory limit to ridiculously high value.  This helps the
