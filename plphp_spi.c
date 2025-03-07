@@ -48,7 +48,7 @@
 #define REPORT_PHP_MEMUSAGE(where) \
 	elog(NOTICE, "PHP mem usage: �%s�: %u", where, AG(allocated_memory));
 #else
-#define REPORT_PHP_MEMUSAGE(a) 
+#define REPORT_PHP_MEMUSAGE(a)
 #endif
 
 /* resource type Id for SPIresult */
@@ -113,21 +113,21 @@ ZEND_FUNCTION(spi_exec)
 	/* Parse arguments */
 	if (ZEND_NUM_ARGS() == 2)
 	{
-		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sl",
+		if (zend_parse_parameters(ZEND_NUM_ARGS(), "sl",
 								  &query, &query_len, &limit) == FAILURE)
 		{
 			zend_error(E_WARNING, "Can not parse parameters in %s",
-					   get_active_function_name(TSRMLS_C));
+					   get_active_function_name());
 			RETURN_FALSE;
 		}
 	}
 	else if (ZEND_NUM_ARGS() == 1)
 	{
-		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s",
+		if (zend_parse_parameters(ZEND_NUM_ARGS(), "s",
 								  &query, &query_len) == FAILURE)
 		{
 			zend_error(E_WARNING, "Can not parse parameters in %s",
-					   get_active_function_name(TSRMLS_C));
+					   get_active_function_name());
 			RETURN_FALSE;
 		}
 		limit = 0;
@@ -135,7 +135,7 @@ ZEND_FUNCTION(spi_exec)
 	else
 	{
 		zend_error(E_WARNING, "Incorrect number of parameters to %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 
@@ -235,16 +235,16 @@ ZEND_FUNCTION(spi_fetch_row)
 	if (ZEND_NUM_ARGS() != 1)
 		WRONG_PARAM_COUNT;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &z_spi) == FAILURE)
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "r", &z_spi) == FAILURE)
 	{
 		zend_error(E_WARNING, "Can not parse parameters in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 	if (z_spi == NULL)
 	{
 		zend_error(E_WARNING, "Could not get SPI resource in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 
@@ -291,13 +291,13 @@ ZEND_FUNCTION(spi_processed)
 	if (zend_parse_parameters(1, "r", &z_spi) == FAILURE)
 	{
 		zend_error(E_WARNING, "Cannot parse parameters in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 	if (z_spi == NULL)
 	{
 		zend_error(E_WARNING, "Could not get SPI resource in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 
@@ -327,13 +327,13 @@ ZEND_FUNCTION(spi_status)
 	if (zend_parse_parameters(1, "r", &z_spi) == FAILURE)
 	{
 		zend_error(E_WARNING, "Cannot parse parameters in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 	if (z_spi == NULL)
 	{
 		zend_error(E_WARNING, "Could not get SPI resource in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 
@@ -367,13 +367,13 @@ ZEND_FUNCTION(spi_rewind)
 	if (zend_parse_parameters(1, "r", &z_spi) == FAILURE)
 	{
 		zend_error(E_WARNING, "Cannot parse parameters in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 	if (z_spi == NULL)
 	{
 		zend_error(E_WARNING, "Could not get SPI resource in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 		RETURN_FALSE;
 	}
 
@@ -405,12 +405,12 @@ ZEND_FUNCTION(pg_raise)
 				 errmsg("wrong number of arguments to %s", "pg_raise")));
 	}
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss",
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "ss",
 							  &level, &level_len,
 							  &message, &message_len) == FAILURE)
 	{
 		zend_error(E_WARNING, "cannot parse parameters in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 	}
 
 	if (strcasecmp(level, "ERROR") == 0) {
@@ -444,11 +444,11 @@ ZEND_FUNCTION(return_next)
 	zval		*tmp;
 	HeapTuple	tup;
 	ReturnSetInfo *rsi;
-	
+
 	/*
 	 * Disallow use of return_next inside non-SRF functions
 	 */
-	if (current_fcinfo == NULL || current_fcinfo->flinfo == NULL || 
+	if (current_fcinfo == NULL || current_fcinfo->flinfo == NULL ||
 		!current_fcinfo->flinfo->fn_retset)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -459,7 +459,7 @@ ZEND_FUNCTION(return_next)
 
 	Assert(current_tupledesc != NULL);
 	Assert(rsi != NULL);
-	
+
 	if (ZEND_NUM_ARGS() > 1)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
@@ -467,16 +467,16 @@ ZEND_FUNCTION(return_next)
 
 	if (ZEND_NUM_ARGS() == 0)
 	{
-		/* 
-		 * Called from the function declared with RETURNS TABLE 
+		/*
+		 * Called from the function declared with RETURNS TABLE
 	     */
 		param = get_table_arguments(current_attinmeta);
 	}
-	else if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z",
+	else if (zend_parse_parameters(ZEND_NUM_ARGS(), "z",
 							  &tmp) == FAILURE)
 	{
 		zend_error(E_WARNING, "cannot parse parameters in %s",
-				   get_active_function_name(TSRMLS_C));
+				   get_active_function_name());
 	} else {
 		param = *tmp;
 	}
@@ -506,7 +506,7 @@ ZEND_FUNCTION(return_next)
  * or is overwritten by another resource.
  */
 void
-php_SPIresult_destroy(zend_resource *rsrc TSRMLS_DC)
+php_SPIresult_destroy(zend_resource *rsrc)
 {
 	php_SPIresult *res = (php_SPIresult *) rsrc->ptr;
 
@@ -524,7 +524,7 @@ zval get_table_arguments(AttInMetadata *attinmeta)
 	int		i;
 
 	saved_symbol_table = zend_rebuild_symbol_table();
-	
+
 	array_init(&retval);
 
 	Assert(attinmeta->tupdesc);
@@ -539,14 +539,14 @@ zval get_table_arguments(AttInMetadata *attinmeta)
 
 		attname = NameStr(attinmeta->tupdesc->attrs[i].attname);
 
-		if ((val = zend_hash_str_find(saved_symbol_table, 
+		if ((val = zend_hash_str_find(saved_symbol_table,
 						   attname, strlen(attname)))) {
-			
+
 			ZVAL_DEINDIRECT(val);
 			add_next_index_zval(&retval, val);
 		} else
 			add_next_index_null(&retval);
-	} 
+	}
 	return retval;
 }
 

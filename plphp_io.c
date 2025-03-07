@@ -95,7 +95,7 @@ plphp_htup_from_zval(zval val, TupleDesc tupdesc)
 		zval   *scalarval = plphp_array_get_elem(val, key);
 
 		values[i] = plphp_zval_get_cstring(scalarval, true, true);
-		/* 
+		/*
 		 * Reset the flag is even one of the keys actually exists,
 		 * even if it is NULL.
 		 */
@@ -106,9 +106,9 @@ plphp_htup_from_zval(zval val, TupleDesc tupdesc)
 	 * try to get 1st N array elements and assign them to the tuple
 	 */
 	if (allempty)
-		for (i = 0, 
+		for (i = 0,
 			 zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(&val), &pos);
-			 (element = zend_hash_get_current_data_ex(Z_ARRVAL_P(&val), &pos)) && 
+			 (element = zend_hash_get_current_data_ex(Z_ARRVAL_P(&val), &pos)) &&
 			(i < tupdesc->natts);
 			zend_hash_move_forward_ex(Z_ARRVAL_P(&val), &pos), i++)
 			values[i] = plphp_zval_get_cstring(&element[0], true, true);
@@ -230,7 +230,7 @@ plphp_convert_to_pg_array(zval *array)
 	int			i = 0;
 	HashPosition 	pos;
 	StringInfoData	str;
-	
+
 	initStringInfo(&str);
 
 	arr_size = zend_hash_num_elements(Z_ARRVAL_P(array));
@@ -285,12 +285,12 @@ plphp_convert_to_pg_array(zval *array)
  *
  * FIXME -- does not correctly quote/dequote the values
  */
-zval plphp_convert_from_pg_array(char *input TSRMLS_DC)
+zval plphp_convert_from_pg_array(char *input)
 {
 	zval	   retval;
 	int			i;
 	StringInfoData str;
-	
+
 	initStringInfo(&str);
 
 	array_init(&retval);
@@ -307,7 +307,7 @@ zval plphp_convert_from_pg_array(char *input TSRMLS_DC)
 	appendStringInfoChar(&str, ';');
 
 	if (zend_eval_string(str.data, &retval,
-						 "plphp array input parameter" TSRMLS_CC) == FAILURE)
+						 "plphp array input parameter") == FAILURE)
 		elog(ERROR, "plphp: convert to internal representation failure");
 
 	pfree(str.data);
@@ -381,7 +381,7 @@ plphp_zval_get_cstring(zval *val, bool do_array, bool null_ok)
 			break;
 		case IS_STRING:
 			ret = palloc(Z_STRLEN_P(val) + 1);
-			snprintf(ret, Z_STRLEN_P(val) + 1, "%s", 
+			snprintf(ret, Z_STRLEN_P(val) + 1, "%s",
 					 Z_STRVAL_P(val));
 			break;
 		case IS_ARRAY:

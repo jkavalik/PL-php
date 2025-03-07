@@ -38,7 +38,7 @@
 /* First round of undefs, to eliminate collision between plphp and postgresql
  * definitions
  */
- 
+
 #undef PACKAGE_BUGREPORT
 #undef PACKAGE_NAME
 #undef PACKAGE_STRING
@@ -81,6 +81,7 @@
 
 /* PHP stuff */
 #include "php.h"
+#include "zend_API.h"
 
 #include "php_variables.h"
 #include "php_globals.h"
@@ -126,7 +127,7 @@
 #define REPORT_PHP_MEMUSAGE(where) \
 	elog(NOTICE, "PHP mem usage: %s: %u", where, AG(allocated_memory));
 #else
-#define REPORT_PHP_MEMUSAGE(a) 
+#define REPORT_PHP_MEMUSAGE(a)
 #endif
 
 /* PostgreSQL starting from v 8.2 requires this define
@@ -136,7 +137,7 @@
 PG_MODULE_MAGIC;
 #else
 /* Supress warnings on 8.1 and below */
-#define ReleaseTupleDesc(tupdesc) 
+#define ReleaseTupleDesc(tupdesc)
 #endif
 
 /* 8.2 compatibility */
@@ -232,25 +233,27 @@ Datum plphp_validator(PG_FUNCTION_ARGS);
 
 static Datum plphp_trigger_handler(FunctionCallInfo fcinfo,
 								   plphp_proc_desc *desc
-								   TSRMLS_DC);
+								   );
 static Datum plphp_func_handler(FunctionCallInfo fcinfo,
-							    plphp_proc_desc *desc
-								TSRMLS_DC);
+								plphp_proc_desc *desc
+								);
 static Datum plphp_srf_handler(FunctionCallInfo fcinfo,
 						   	   plphp_proc_desc *desc
-							   TSRMLS_DC);
+							   );
 
-static plphp_proc_desc *plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC);
+static plphp_proc_desc *plphp_compile_function(Oid fnoid, bool is_trigger);
 static zval plphp_call_php_func(plphp_proc_desc *desc,
 								 FunctionCallInfo fcinfo
-								 TSRMLS_DC);
+								 );
 static zval plphp_call_php_trig(plphp_proc_desc *desc,
 								 FunctionCallInfo fcinfo, zval *trigdata
-								 TSRMLS_DC);
+								 );
 
-static void plphp_error_cb(int type, const char *filename, const uint lineno,
-								  const char *fmt, va_list args);
+static void plphp_error_cb(int type, zend_string *error_filename, const uint32_t error_lineno, zend_string *message);
+
 static bool is_valid_php_identifier(char *name);
+
+void (*original_zend_error_cb)(int type, const char *error_filename, const uint error_lineno, const char *format, va_list args);
 
 /*
  * FIXME -- this comment is quite misleading actually, which is not surprising
@@ -280,7 +283,7 @@ perm_fmgr_info(Oid functionId, FmgrInfo *finfo)
  * We just save the output in a StringInfo until the next Flush call.
  */
 static size_t
-sapi_plphp_write(const char *str, size_t str_length TSRMLS_DC)
+sapi_plphp_write(const char *str, size_t str_length)
 {
 	if (currmsg == NULL)
 		currmsg = makeStringInfo();
@@ -320,7 +323,7 @@ sapi_plphp_flush(void *sth)
 }
 
 static int
-sapi_plphp_send_headers(sapi_headers_struct *sapi_headers TSRMLS_DC)
+sapi_plphp_send_headers(sapi_headers_struct *sapi_headers)
 {
 	return 1;
 }
@@ -371,6 +374,9 @@ const char HARDCODED_INI[] =
 	"output_buffering=0\n"
 	"max_execution_time=0\n"
 	"max_input_time=-1\n"
+	"xdebug.remote_autostart=0\n"
+	"xdebug.remote_enable=0\n"
+	"xdebug.profiler_enable=0\n"
 	"disable_functions=exec,passthru,shell_exec,system,proc_open,popen,curl_exec,curl_multi_exec,parse_ini_file,show_source\n\0";
 
 /*
@@ -400,7 +406,6 @@ plphp_init_all(void)
 void
 plphp_init(void)
 {
-	TSRMLS_FETCH();
 	/* Do initialization only once */
 	if (!plphp_first_call)
 		return;
@@ -469,7 +474,7 @@ plphp_init(void)
 			/* not initialized but needed for several options */
 			CG(in_compilation) = false;
 
-			if (php_request_startup(TSRMLS_C) == FAILURE)
+			if (php_request_startup() == FAILURE)
 			{
 				SG(headers_sent) = 1;
 				SG(request_info).no_headers = 1;
@@ -477,17 +482,20 @@ plphp_init(void)
 				elog(ERROR, "php_request_startup call failed");
 			}
 
+			/* again because of xdebug */
+			zend_error_cb = plphp_error_cb;
+
 			zend_register_functions(
 				NULL,
 				spi_functions, NULL,
-				MODULE_PERSISTENT TSRMLS_CC
+				MODULE_PERSISTENT
 			);
 
 			PG(during_request_startup) = true;
 
 			/* Register the resource for SPI_result */
 			SPIres_rtype = zend_register_list_destructors_ex(php_SPIresult_destroy,
-															 NULL, 
+															 NULL,
 															 "SPI result",
 															 0);
 
@@ -529,7 +537,6 @@ Datum
 plphp_call_handler(PG_FUNCTION_ARGS)
 {
 	Datum		retval;
-	TSRMLS_FETCH();
 
 	/* Initialize interpreter */
 	plphp_init_all();
@@ -552,26 +559,26 @@ plphp_call_handler(PG_FUNCTION_ARGS)
 			/* Redirect to the appropiate handler */
 			if (CALLED_AS_TRIGGER(fcinfo))
 			{
-				desc = plphp_compile_function(fcinfo->flinfo->fn_oid, true TSRMLS_CC);
+				desc = plphp_compile_function(fcinfo->flinfo->fn_oid, true);
 
 				if (desc->trusted) {
 					/* Emulate PHP safe mode if needed */
-					PG(disable_functions) = "exec,passthru,shell_exec,system,proc_open,popen,curl_exec,curl_multi_exec,parse_ini_file,show_source";
+					zend_disable_functions("exec,passthru,shell_exec,system,proc_open,popen,curl_exec,curl_multi_exec,parse_ini_file,show_source");
 				}
-				retval = plphp_trigger_handler(fcinfo, desc TSRMLS_CC);
+				retval = plphp_trigger_handler(fcinfo, desc);
 			}
 			else
 			{
-				desc = plphp_compile_function(fcinfo->flinfo->fn_oid, false TSRMLS_CC);
+				desc = plphp_compile_function(fcinfo->flinfo->fn_oid, false);
 
 				if (desc->trusted) {
 					/* Emulate PHP safe mode if needed */
-					PG(disable_functions) = "exec,passthru,shell_exec,system,proc_open,popen,curl_exec,curl_multi_exec,parse_ini_file,show_source";
+					zend_disable_functions("exec,passthru,shell_exec,system,proc_open,popen,curl_exec,curl_multi_exec,parse_ini_file,show_source");
 				}
 				if (desc->retset)
-					retval = plphp_srf_handler(fcinfo, desc TSRMLS_CC);
+					retval = plphp_srf_handler(fcinfo, desc);
 				else
-					retval = plphp_func_handler(fcinfo, desc TSRMLS_CC);
+					retval = plphp_func_handler(fcinfo, desc);
 			}
 		}
 		zend_catch
@@ -622,7 +629,6 @@ plphp_validator(PG_FUNCTION_ARGS)
 	Datum			prosrcdatum;
 
 
-	TSRMLS_FETCH();
 	/* Initialize interpreter */
 	plphp_init_all();
 
@@ -677,7 +683,7 @@ plphp_validator(PG_FUNCTION_ARGS)
 			 * the ERROR will be raised and the function will not be created.
 			 */
 			if (zend_eval_string(tmpsrc, NULL,
-								 "plphp function temp source" TSRMLS_CC) == FAILURE)
+								 "plphp function temp source") == FAILURE)
 				elog(ERROR, "function \"%s\" does not validate", funcname);
 
 			pfree(tmpsrc);
@@ -761,7 +767,7 @@ plphp_trig_build_args(FunctionCallInfo fcinfo)
 
 	/* The basic variables */
 	add_assoc_string(&retval, "name", tdata->tg_trigger->tgname);
-    add_assoc_long(&retval, "relid", tdata->tg_relation->rd_id);
+	add_assoc_long(&retval, "relid", tdata->tg_relation->rd_id);
 	add_assoc_string(&retval, "relname", SPI_getrelname(tdata->tg_relation));
 	add_assoc_string(&retval, "schemaname", SPI_getnspname(tdata->tg_relation));
 
@@ -846,7 +852,7 @@ plphp_trig_build_args(FunctionCallInfo fcinfo)
  * 		Handler for trigger function calls
  */
 static Datum
-plphp_trigger_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
+plphp_trigger_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc)
 {
 	Datum		retval = 0;
 	char	   *srv;
@@ -860,7 +866,7 @@ plphp_trigger_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
 
 	REPORT_PHP_MEMUSAGE("going to call the trigger function");
 
-	phpret = plphp_call_php_trig(desc, fcinfo, &zTrigData TSRMLS_CC);
+	phpret = plphp_call_php_trig(desc, fcinfo, &zTrigData);
 //	if (!phpret)
 //		elog(ERROR, "error during execution of function %s", desc->proname);
 
@@ -880,7 +886,7 @@ plphp_trigger_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
 
 	if (Z_TYPE_P(&zTrigData) != IS_ARRAY)
 		elog(ERROR, "$_TD is not an array");
-			 
+
 	/*
 	 * In a BEFORE trigger, compute the return value.  In an AFTER trigger
 	 * it'll be ignored, so don't bother.
@@ -940,7 +946,7 @@ plphp_trigger_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
  * 		Handler for regular function calls
  */
 static Datum
-plphp_func_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
+plphp_func_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc)
 {
 	zval	   phpret;
 	Datum		retval;
@@ -950,7 +956,7 @@ plphp_func_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
 	Assert(!desc->retset);
 
 	/* Call the PHP function.  */
-	phpret = plphp_call_php_func(desc, fcinfo TSRMLS_CC);
+	phpret = plphp_call_php_func(desc, fcinfo);
 	//if (!phpret)
 	//	elog(ERROR, "error during execution of function %s", desc->proname);
 
@@ -1067,7 +1073,7 @@ plphp_func_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
  * 		Invoke a SRF
  */
 static Datum
-plphp_srf_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
+plphp_srf_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc)
 {
 	ReturnSetInfo *rsi = (ReturnSetInfo *) fcinfo->resultinfo;
 	TupleDesc	tupdesc;
@@ -1122,7 +1128,7 @@ plphp_srf_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
 	 * Call the PHP function.  The user code must call return_next, which will
 	 * create and populate the tuplestore appropiately.
 	 */
-	plphp_call_php_func(desc, fcinfo TSRMLS_CC);
+	plphp_call_php_func(desc, fcinfo);
 
 	/* Close the SPI connection */
 	if (SPI_finish() != SPI_OK_FINISH)
@@ -1156,7 +1162,7 @@ plphp_srf_handler(FunctionCallInfo fcinfo, plphp_proc_desc *desc TSRMLS_DC)
  * 		Compile (or hopefully just look up) function
  */
 static plphp_proc_desc *
-plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
+plphp_compile_function(Oid fnoid, bool is_trigger)
 {
 	HeapTuple	procTup;
 	Form_pg_proc procStruct;
@@ -1166,7 +1172,7 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 	char	   *pointer = NULL;
 
 	/*
-	 * We'll need the pg_proc tuple in any case... 
+	 * We'll need the pg_proc tuple in any case...
 	 */
 	procTup = SearchSysCache(PROCOID, ObjectIdGetDatum(fnoid), 0, 0, 0);
 	if (!HeapTupleIsValid(procTup))
@@ -1372,27 +1378,27 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 
 			/* Deal with named arguments, OUT, IN/OUT and TABLE arguments */
 
-			prodesc->n_total_args = get_func_arg_info(procTup, &argtypes, 
+			prodesc->n_total_args = get_func_arg_info(procTup, &argtypes,
 											  		  &argnames, &argmodes);
 			prodesc->n_out_args = 0;
 			prodesc->n_mixed_args = 0;
-			
+
 			prodesc->args_out_tupdesc = NULL;
 			out_return_str = NULL;
 			alias_str_end = out_str_end = 0;
 
 			/* Count the number of OUT arguments. Need to do this out of the
 			 * main loop, to correctly determine the object to return for OUT args
-		     */
+			 */
 			if (argmodes)
 				for (i = 0; i < prodesc->n_total_args; i++)
 				{
 					switch(argmodes[i])
 					{
-						case PROARGMODE_OUT: 
+						case PROARGMODE_OUT:
 							prodesc->n_out_args++;
 							break;
-						case PROARGMODE_INOUT: 
+						case PROARGMODE_INOUT:
 							prodesc->n_mixed_args++;
 							break;
 						case PROARGMODE_IN:
@@ -1405,7 +1411,7 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 						default:
 							elog(ERROR, "Unsupported type %c for argument no %d",
 								 argmodes[i], i);
-					}					
+					}
 					prodesc->arg_argmode[i] = argmodes[i];
 				}
 			else
@@ -1415,13 +1421,13 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 			/* Allocate memory for argument names unless all of them are OUT*/
 			if (argnames && prodesc->n_total_args > 0)
 				aliases = palloc((NAMEDATALEN + 32) * prodesc->n_total_args);
-			
+
 			/* Main argument processing loop. */
 			for (i = 0; i < prodesc->n_total_args; i++)
 			{
 				prodesc->arg_typtype[i] = get_typtype(argtypes[i]);
 				if (prodesc->arg_typtype[i] != TYPTYPE_COMPOSITE)
-				{							
+				{
 					get_type_io_data(argtypes[i],
 									 IOFunc_output,
 									 &typlen,
@@ -1441,7 +1447,7 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 					/* Deal with argument name */
 					alias_str_end += snprintf(aliases + alias_str_end,
 										 	  NAMEDATALEN + 32,
-								   		 	  " $%s = &$args[%d];", 
+								   		 	  " $%s = &$args[%d];",
 											  argnames[i], i);
 				}
 				if ((prodesc->arg_argmode[i] == PROARGMODE_OUT ||
@@ -1472,24 +1478,24 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 
 							snprintf(out_return_str, array_namelen + 16,
 									"return $%s;", plphp_ret_array_name);
-									
+
 							/* 2 NAMEDATALEN for argument names, additional
 							 * 16 bytes per each argument for assignment string,
 							 * additional 16 bytes for the 'array' prefix string.
-							 */		
+							 */
 							out_aliases = palloc(array_namelen +
-												 (prodesc->n_out_args + 
+												 (prodesc->n_out_args +
 												  prodesc->n_mixed_args) *
 												 (2*NAMEDATALEN + 16) + 16);
-												
+
 							out_str_end = snprintf(out_aliases,
 							 					   array_namelen +
 												   (2 * NAMEDATALEN + 16) + 16,
-												   "$%s = array(&$args[%d]", 
+												   "$%s = array(&$args[%d]",
 												   plphp_ret_array_name, i);
-												   
+
 						}
-					} 
+					}
 					else if (out_aliases)
 					{
 					   /* Add new elements to the array of aliases for OUT args */
@@ -1524,7 +1530,7 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 		complete_proc_source =
 			(char *) palloc(strlen(proc_source) +
 							strlen(internal_proname) +
-							(aliases ? strlen(aliases) : 0) + 
+							(aliases ? strlen(aliases) : 0) +
 							(out_aliases ? strlen(out_aliases) : 0) +
 							strlen("function  ($args, $argc){ } ") + 32 +
 							(out_return_str ? strlen(out_return_str) : 0));
@@ -1534,17 +1540,17 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 			sprintf(complete_proc_source, "function %s(&$_TD){%s}",
 					internal_proname, proc_source);
 		else
-			sprintf(complete_proc_source, 
+			sprintf(complete_proc_source,
 					"function %s($args, $argc){%s %s;%s; %s}",
-					internal_proname, 
+					internal_proname,
 					aliases ? aliases : "",
 					out_aliases ? out_aliases : "",
-					proc_source, 
+					proc_source,
 					out_return_str? out_return_str : "");
-					
+
 		elog(LOG, "complete_proc_source = %s",
 				 	 complete_proc_source);
-				
+
 		zend_hash_del(CG(function_table), zend_string_init(prodesc->proname,
 					  strlen(prodesc->proname), 0));
 
@@ -1554,7 +1560,7 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
 						 (char *) pointer);
 
 		if (zend_eval_string(complete_proc_source, NULL,
-							 "plphp function source" TSRMLS_CC) == FAILURE)
+							 "plphp function source") == FAILURE)
 		{
 			/* the next compilation will blow it up */
 			prodesc->fn_xmin = InvalidTransactionId;
@@ -1581,18 +1587,18 @@ plphp_compile_function(Oid fnoid, bool is_trigger TSRMLS_DC)
  * 		Build a PHP array representing the arguments to the function
  */
 static zval
-plphp_func_build_args(plphp_proc_desc *desc, FunctionCallInfo fcinfo TSRMLS_DC)
+plphp_func_build_args(plphp_proc_desc *desc, FunctionCallInfo fcinfo)
 {
 	zval	   retval;
 	int			i,j;
 
 	array_init(&retval);
 
-	/* 
-	 * The first var iterates over every argument, the second one - over the 
+	/*
+	 * The first var iterates over every argument, the second one - over the
 	 * IN or INOUT ones only
 	 */
-	for (i = 0, j = 0; i < desc->n_total_args; 
+	for (i = 0, j = 0; i < desc->n_total_args;
 		 (j = IS_ARGMODE_OUT(desc->arg_argmode[i]) ? j : j + 1), i++)
 	{
 		/* Assing NULLs to OUT or TABLE arguments initially */
@@ -1677,7 +1683,7 @@ plphp_func_build_args(plphp_proc_desc *desc, FunctionCallInfo fcinfo TSRMLS_DC)
 				{
 					zval	   hashref;
 
-					hashref = plphp_convert_from_pg_array(tmp TSRMLS_CC);
+					hashref = plphp_convert_from_pg_array(tmp);
 					zend_hash_next_index_insert(Z_ARRVAL(retval), &hashref);
 				}
 				else
@@ -1705,13 +1711,13 @@ plphp_func_build_args(plphp_proc_desc *desc, FunctionCallInfo fcinfo TSRMLS_DC)
  * used by the caller -- it must be freed there!
  */
 static zval
-plphp_call_php_func(plphp_proc_desc *desc, FunctionCallInfo fcinfo TSRMLS_DC)
+plphp_call_php_func(plphp_proc_desc *desc, FunctionCallInfo fcinfo)
 {
 	zval	   retval;
 	zval	   args;
 	zval	   argc;
 	zval	   funcname;
-	zval	  *params[2];
+	zval	  params[2];
 	char		call[64];
 	HashTable  *orig_symbol_table;
 	HashTable  *symbol_table;
@@ -1726,7 +1732,7 @@ plphp_call_php_func(plphp_proc_desc *desc, FunctionCallInfo fcinfo TSRMLS_DC)
 	 * Build the function arguments.  Save a pointer to each new zval in our
 	 * private symbol table, so that we can clean up easily later.
 	 */
-	args = plphp_func_build_args(desc, fcinfo TSRMLS_CC);
+	args = plphp_func_build_args(desc, fcinfo);
 	zend_hash_update(symbol_table, zend_string_init("args", strlen("args"), 0), &args);
 
 	REPORT_PHP_MEMUSAGE("args built. Now the rest ...");
@@ -1734,8 +1740,8 @@ plphp_call_php_func(plphp_proc_desc *desc, FunctionCallInfo fcinfo TSRMLS_DC)
 	ZVAL_LONG(&argc, desc->n_total_args);
 	zend_hash_update(symbol_table, zend_string_init("argc", strlen("argc"), 0), &argc);
 
-	params[0] = &args;
-	params[1] = &argc;
+	params[0] = args;
+	params[1] = argc;
 
 	/* Build the internal function name, and save for later cleaning */
 	sprintf(call, "plphp_proc_%u", fcinfo->flinfo->fn_oid);
@@ -1752,9 +1758,8 @@ plphp_call_php_func(plphp_proc_desc *desc, FunctionCallInfo fcinfo TSRMLS_DC)
 		saved_symbol_table = ex->symbol_table;
 	}
 
-	/* XXX: why no_separation param is 1 is this call ? */
-	if (call_user_function_ex(CG(function_table), NULL, &funcname, &retval,
-							  2, *params, 1, symbol_table TSRMLS_CC) == FAILURE)
+	if (call_user_function(NULL, NULL, &funcname, &retval,
+							  2, params) == FAILURE)
 		elog(ERROR, "could not call function \"%s\"", call);
 
 	REPORT_PHP_MEMUSAGE("going to free some vars");
@@ -1782,7 +1787,7 @@ plphp_call_php_func(plphp_proc_desc *desc, FunctionCallInfo fcinfo TSRMLS_DC)
  */
 static zval
 plphp_call_php_trig(plphp_proc_desc *desc, FunctionCallInfo fcinfo,
-					zval *trigdata TSRMLS_DC)
+					zval *trigdata)
 {
 	zval	   retval;
 	zval	   funcname;
@@ -1795,15 +1800,15 @@ plphp_call_php_trig(plphp_proc_desc *desc, FunctionCallInfo fcinfo,
 
 	/*
 	 * HACK: mark trigdata as a reference, so it won't be copied in
-	 * call_user_function_ex.  This way the user function will be able to 
+	 * call_user_function.  This way the user function will be able to
 	 * modify it, in order to change NEW.
 	 */
 	ZVAL_MAKE_REF(trigdata);
 
 	params[0] = trigdata;
 
-	if (call_user_function_ex(CG(function_table), NULL, &funcname, &retval,
-							  1, *params, 0, NULL TSRMLS_CC) == FAILURE)
+	if (call_user_function(CG(function_table), NULL, &funcname, &retval,
+							  1, *params) == FAILURE)
 		elog(ERROR, "could not call function \"%s\"", call);
 
 	/* Return to the original state */
@@ -1818,20 +1823,16 @@ plphp_call_php_trig(plphp_proc_desc *desc, FunctionCallInfo fcinfo,
  * A callback for PHP error handling.  This is called when the php_error or
  * zend_error function is invoked in our code.  Ideally this function should
  * clean up the PHP state after an ERROR, but zend_try blocks do not seem
- * to work as I'd expect.  So for now, we degrade the error to WARNING and 
+ * to work as I'd expect.  So for now, we degrade the error to WARNING and
  * continue executing in the hope that the system doesn't crash later.
  *
  * Note that we do clean up some PHP state by hand but it doesn't seem to
  * work as expected either.
  */
-void
-plphp_error_cb(int type, const char *filename, const uint lineno,
-	   		   const char *fmt, va_list args)
+static void
+plphp_error_cb(int type, zend_string *error_filename, const uint32_t error_lineno, zend_string *message)
 {
-	char	str[1024];
 	int		elevel;
-
-	vsnprintf(str, 1024, fmt, args);
 
 	/*
 	 * PHP error classification is a bitmask, so this conversion is a bit
@@ -1882,29 +1883,29 @@ plphp_error_cb(int type, const char *filename, const uint lineno,
 	 */
 	if (elevel >= ERROR)
 	{
-		if (lineno != 0)
+		if (error_lineno != 0)
 		{
 			char	msgline[1024];
-			snprintf(msgline, sizeof(msgline), "%s at line %d", str, lineno);
+			snprintf(msgline, sizeof(msgline), "%s at line %d", ZSTR_VAL(message), error_lineno);
 			plphp_error_msg = pstrdup(msgline);
 		}
 		else
-			plphp_error_msg = pstrdup(str);
+			plphp_error_msg = pstrdup(ZSTR_VAL(message));
 
 		zend_bailout();
 	}
 
 	ereport(elevel,
-			(errmsg("plphp: %s", str)));
+			(errmsg("plphp: %s", ZSTR_VAL(message))));
 }
 
 /* Check if the name can be a valid PHP variable name */
-static bool 
+static bool
 is_valid_php_identifier(char *name)
 {
 	int 	len,
 			i;
-	
+
 	Assert(name);
 
 	len = strlen(name);

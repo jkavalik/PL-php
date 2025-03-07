@@ -9,16 +9,18 @@ LANGUAGE plphp AS $$
 $$;
 CREATE FUNCTION
 SELECT test_show_source();
- test_show_source 
-------------------
- 
-(1 row)
+ERROR:  Uncaught Error: Call to undefined function show_source() in plphp function source:2
+Stack trace:
+#0 [internal function]: plphp_proc_718517()
+#1 {main}
+  thrown at line 2
 
 SELECT * FROM test_show_source();
- test_show_source 
-------------------
- 
-(1 row)
+ERROR:  Uncaught Error: Call to undefined function show_source() in plphp function source:2
+Stack trace:
+#0 [internal function]: plphp_proc_718517()
+#1 {main}
+  thrown at line 2
 
 CREATE FUNCTION test_exec() RETURNS text
 LANGUAGE plphp AS $$
@@ -26,16 +28,18 @@ LANGUAGE plphp AS $$
 $$;
 CREATE FUNCTION
 SELECT test_exec();
- test_exec 
------------
- 
-(1 row)
+ERROR:  Uncaught Error: Call to undefined function exec() in plphp function source:2
+Stack trace:
+#0 [internal function]: plphp_proc_726137()
+#1 {main}
+  thrown at line 2
 
 SELECT * FROM test_exec();
- test_exec 
------------
- 
-(1 row)
+ERROR:  Uncaught Error: Call to undefined function exec() in plphp function source:2
+Stack trace:
+#0 [internal function]: plphp_proc_726137()
+#1 {main}
+  thrown at line 2
 
 rollback;
 ROLLBACK

@@ -52,7 +52,7 @@ ZEND_FUNCTION(spi_rewind);
 ZEND_FUNCTION(pg_raise);
 ZEND_FUNCTION(return_next);
 
-void php_SPIresult_destroy(zend_resource *rsrc TSRMLS_DC);
+void php_SPIresult_destroy(zend_resource *rsrc);
 
 #endif /* PLPHP_SPI_H */
 

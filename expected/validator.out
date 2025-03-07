@@ -16,12 +16,12 @@ CREATE OR REPLACE FUNCTION valid() RETURNS void LANGUAGE plphp AS $$
 $$;
 CREATE FUNCTION
 select valid();
-ERROR:  could not call function "plphp_proc_478909"
+ERROR:  could not call function "plphp_proc_718031"
 CREATE FUNCTION valid2() RETURNS void LANGUAGE plphp AS $$
 	return array();
 $$;
 CREATE FUNCTION
 select valid2();
-ERROR:  could not call function "plphp_proc_478910"
+ERROR:  could not call function "plphp_proc_718032"
 rollback;
 ROLLBACK

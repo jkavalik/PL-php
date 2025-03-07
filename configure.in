@@ -1,21 +1,18 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.59)
-AC_INIT(PL/php, 1.4dev, plphp@lists.commandprompt.com)
+AC_PREREQ([2.71])
+AC_INIT([PL/php],[1.4dev],[plphp@lists.commandprompt.com])
 AC_CONFIG_SRCDIR([plphp_io.c])
-AC_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 
 # Checks for common programs.
 AC_PROG_CC
 AC_PROG_AWK
 AC_PROG_GREP
 
-AC_ARG_WITH([php], AC_HELP_STRING([--with-php=DIR], 
-								  [specify a path to the PHP installation]), [PHP_PATH=$withval])
-AC_ARG_WITH([postgres], AC_HELP_STRING([--with-postgres=DIR], 
-									   [specify a path to the PostgreSQL installation]), [PG_PATH=$withval])
-AC_ARG_ENABLE([debug], AC_HELP_STRING([--enable-debug],
-									  [build with debug information]), [DEBUG="$enableval"  ],[])
+AC_ARG_WITH([php], AS_HELP_STRING([--with-php=DIR],[specify a path to the PHP installation]), [PHP_PATH=$withval])
+AC_ARG_WITH([postgres], AS_HELP_STRING([--with-postgres=DIR],[specify a path to the PostgreSQL installation]), [PG_PATH=$withval])
+AC_ARG_ENABLE([debug], AS_HELP_STRING([--enable-debug],[build with debug information]), [DEBUG="$enableval"  ],[])
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h unistd.h])
 
@@ -99,9 +96,9 @@ Please rebuild your PHP library with --enable-embed])
 fi
 
 # Checks for libraries.
-AC_CHECK_LIB([php5], [php_module_startup],[], [have_php5="no"], [$PHP_LDFLAGS])
-if test "$have_php5" = "no"; then
-	AC_MSG_ERROR([Cannot find PHP 5 SAPI library])
+AC_CHECK_LIB([php8], [sapi_startup],[], [have_php8="no"], [$PHP_LDFLAGS])
+if test "$have_php8" = "no"; then
+	AC_MSG_ERROR([Cannot find PHP 8 SAPI library])
 fi
 
 
