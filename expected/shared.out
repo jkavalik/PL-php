@@ -11,7 +11,7 @@ $$ LANGUAGE plphp;
 CREATE FUNCTION
 CREATE OR REPLACE FUNCTION php_get_shared (text) RETURNS text AS $$
   global $_SHARED;
-  return $_SHARED[$args[0]];
+  return $_SHARED[$args[0]] ?? null;
 $$ LANGUAGE plphp;
 CREATE FUNCTION
 SELECT php_set_shared('first', 'hello plphp');

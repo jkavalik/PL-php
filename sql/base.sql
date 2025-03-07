@@ -107,6 +107,7 @@ $$;
 
 SELECT php_str_max('foo', 'bar');
 SELECT php_str_max($$After the presentation, we headed down to the restaurant in the building for and evening reception with beer, buffet and even a little bingo. Lot's of business cards were exchanged with a variety of PostgreSQL users and developers, and even one of the Firebird team!!$$, ' foo');
+-- ' -- phpstorm parsing fix
 SELECT php_str_max('', NULL);
 
 CREATE FUNCTION php_substr(text, int, int) RETURNS text
@@ -131,7 +132,7 @@ SELECT php_concat(
 
 CREATE FUNCTION php_arr_in(integer[], integer, integer)
 returns integer language plphp AS $$
-	return $args[0][$args[1]][$args[2]];
+	return $args[0][$args[1]][$args[2]] ?? null;
 $$;
 
 SELECT php_arr_in(ARRAY[[1, 10], [2, 4], [3, 5]], 0, 0);

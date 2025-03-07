@@ -54,16 +54,19 @@
 /* resource type Id for SPIresult */
 int SPIres_rtype;
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_void, 0, 0, 0)
+ZEND_END_ARG_INFO()
+
 /* SPI function table */
 zend_function_entry spi_functions[] =
 {
-	ZEND_FE(spi_exec, NULL)
-	ZEND_FE(spi_fetch_row, NULL)
-	ZEND_FE(spi_processed, NULL)
-	ZEND_FE(spi_status, NULL)
-	ZEND_FE(spi_rewind, NULL)
-	ZEND_FE(pg_raise, NULL)
-	ZEND_FE(return_next, NULL)
+	ZEND_FE(spi_exec, arginfo_void)
+	ZEND_FE(spi_fetch_row, arginfo_void)
+	ZEND_FE(spi_processed, arginfo_void)
+	ZEND_FE(spi_status, arginfo_void)
+	ZEND_FE(spi_rewind, arginfo_void)
+	ZEND_FE(pg_raise, arginfo_void)
+	ZEND_FE(return_next, arginfo_void)
 	ZEND_FE_END
 };
 
